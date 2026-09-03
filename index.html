@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Elemental Sandbox — Procedural Ice &amp; Lightning VFX Playground</title>
+    <link rel="preload" as="fetch" href="./models/Idle.fbx" crossorigin />
+    <link rel="preload" as="fetch" href="./models/dummy.fbx" crossorigin />
+    <!-- `crossorigin` to match TextureLoader, which requests anonymously. -->
+    <link rel="preload" as="image" href="./models/diffuse.png" crossorigin />
+    <link rel="stylesheet" href="./src/ui/styles.css" />
+  </head>
+  <body>
+    <canvas id="viewport"></canvas>
+
+    <!-- Boot / loading veil -->
+    <div id="loader" class="loader">
+      <div class="loader__inner">
+        <div class="loader__sigil">
+          <span class="sigil sigil--a"></span>
+          <span class="sigil sigil--b"></span>
+          <span class="sigil sigil--c"></span>
+          <span class="sigil sigil--d"></span>
+        </div>
+        <h1 class="loader__title">Elemental Sandbox</h1>
+        <div class="loader__bar"><i id="loader-fill"></i></div>
+        <p class="loader__status" id="loader-status">Growing the crystals…</p>
+      </div>
+    </div>
+
+    <!-- Heads-up display (populated by src/ui/HUD.js) -->
+    <div id="hud" class="hud" aria-live="polite"></div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
