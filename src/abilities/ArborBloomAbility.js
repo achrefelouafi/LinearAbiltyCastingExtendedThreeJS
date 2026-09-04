@@ -466,11 +466,16 @@ export class ArborBloomAbility extends Ability {
    * comes out through the gold, and what the back shows is a lit shell. The
    * lance and its gout leave from here too, so the shot comes out of the light
    * rather than out of the stalk.
+   *
+   * The seat rides `open`, so the charge climbs into the throat as the whorls
+   * come apart and sinks back to the base as they close. A fixed seat would
+   * have it standing off the point of a closed bud.
    */
-  _lightPoint(out, scale) {
+  _lightPoint(out, scale, open) {
+    const seat = settings.growth.coreSeat * scale * saturate(open);
     return out
       .copy(this._bloomState.uCentre.value)
-      .addScaledVector(this._facing, settings.growth.coreSeat * scale);
+      .addScaledVector(this._facing, seat);
   }
 
   /* ------------------------------------------------------------------ */
@@ -689,7 +694,7 @@ export class ArborBloomAbility extends Ability {
     this.petalGeometry.instanceCount = Math.min(MAX_PETALS, petals);
     this.petals.visible = !travelling && lift > 0.002;
 
-    this._lightPoint(this._lightAt, scale);
+    this._lightPoint(this._lightAt, scale, open);
     _bloom.copy(this._lightAt);
     const coreRadius = Math.max(0.02, c.coreSize * scale);
     this.core.visible = this.petals.visible;

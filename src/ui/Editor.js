@@ -3057,7 +3057,7 @@ export class Editor {
     R(rise, c, 'riseTime', 0.02, 1.2, 0.005, 'rise time (s)');
     R(rise, c, 'riseOvershoot', 0, 1, 0.01, 'punch overshoot');
     R(rise, c, 'riseStagger', 0, 1, 0.005, 'neighbour delay (s)');
-    R(rise, c, 'settle', 0.05, 2, 0.01, 'overshoot damping (s)');
+    R(rise, c, 'settle', 0.05, 2, 0.01, 'drop back onto seat (s)');
     R(rise, c, 'sinkDelay', 0, 4, 0.02, 'delay before it sinks (s)');
     R(rise, c, 'sinkTime', 0.05, 5, 0.02, 'sink time (s)');
 

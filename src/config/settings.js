@@ -2836,9 +2836,15 @@ export const settings = {
      * back unobstructed, which is the wrong way round. Seated up the axis it
      * sits in the throat of the inner whorl instead: the light comes out
      * through the gold, and the back is a lit shell rather than the lamp.
-     * Past about 0.4 it clears the mouth of the cup and floats free.
+     *
+     * The inner whorl's mouth is at about 0.4, and the shipped value sits just
+     * past it: the charge rests *in* the mouth, where it reads as the flower's
+     * lamp from the front and leaves nothing at all showing behind. Pull it
+     * under 0.3 and it sinks into the throat — warmer, softer, and the back
+     * starts to glow again. It rides how far open the bloom is, so a closed
+     * bud keeps its charge down at the bases.
      */
-    coreSeat: 0.34,
+    coreSeat: 0.5,
     coreIntensity: 0.7,
     coreChargeGain: 2.6, // how much brighter it runs as a lance winds up
     coreFill: 1.7, // how hard it is weighted toward the axis
@@ -3714,10 +3720,12 @@ export const settings = {
     stoneBend: 0.1, // lateral drift of the axis from base to top
 
     /* --- the eruption --- */
-    riseTime: 0.17, // seconds from buried to full height
-    riseOvershoot: 0.2, // how far past full height the punch carries
+    riseTime: 0.17, // seconds from buried to the top of the punch
+    riseOvershoot: 0.15, // how far past full height the punch carries — this is
+    // the literal peak, and past ~0.25 the slab's root clears the floor on show
     riseStagger: 0.09, // seconds of random delay between neighbours
-    settle: 0.45, // seconds the overshoot takes to damp out — long, for mass
+    settle: 0.3, // seconds it takes to fall back onto its seat. One drop, no
+    // rebound — long enough to read as weight, short enough not to float.
     sinkDelay: 0.8, // seconds after `lifetime` before it withdraws
     sinkTime: 1.6, // seconds to go back into the floor
 

@@ -615,8 +615,8 @@ export class MonolithRiftAbility extends Ability {
   }
 
   /**
-   * How far out of the ground a stone is, 0 → 1 with a heavy overshoot past 1.
-   * Negative while it is still buried and waiting.
+   * How far out of the ground a stone is, 0 → 1, punching past 1 on the way up
+   * and dropping back onto its seat. Negative while it is still buried.
    */
   _emergence(record, c) {
     if (record.eruptTime < 0) return -1;
@@ -624,15 +624,18 @@ export class MonolithRiftAbility extends Ability {
     if (elapsed < 0) return -1;
 
     const riseTime = Math.max(0.02, c.riseTime);
-    const rise = Easing.outQuint(saturate(elapsed / riseTime));
-    if (elapsed <= riseTime) return rise;
+    // The punch throws the slab clear of its seat, so the rise carries all the
+    // way to the top of the overshoot rather than stopping at full height.
+    const peak = 1 + c.riseOvershoot;
+    if (elapsed <= riseTime) return Easing.outQuint(elapsed / riseTime) * peak;
 
-    // The punch-through carries past full height and settles back. On stone
-    // this wants to be slower and heavier than it is on crystal: a slab has
-    // mass, and the thing that reads as mass is a long, low settle.
-    const after = elapsed - riseTime;
-    const spring = Math.sin(after * 11) * Math.exp(-after / Math.max(0.05, c.settle));
-    return 1 + c.riseOvershoot * spring;
+    // Then gravity takes it straight back down and it stops dead on the seat.
+    // Stone does not rebound: it falls once and the floor keeps it. Anything
+    // that oscillates here — which is what a damped sine does — reads as rubber.
+    // inQuad because that is the shape of a fall: slow off the top, hard at the
+    // bottom, which is where the weight is.
+    const drop = saturate((elapsed - riseTime) / Math.max(0.05, c.settle));
+    return peak - c.riseOvershoot * Easing.inQuad(drop);
   }
 
   /**
