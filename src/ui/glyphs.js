@@ -122,6 +122,26 @@ const WARD = WRAP(`
   <path d="M67 60V42M58 51H76"/>
 `);
 
+/**
+ * Acid — a ring with gas climbing out of it.
+ *
+ * The fourth sigil built around a circle you look *into*, and the only one
+ * whose contents leave the frame: two strands of mist curl up out of the ring
+ * and off the top of the box, with bubbles rising between them and getting
+ * smaller as they go. Where the Ward is a closed vessel, this one is open —
+ * which is the one thing that separates the two green-and-glowing slots at a
+ * glance.
+ */
+const ACID = WRAP(`
+  <ellipse cx="50" cy="78" rx="36" ry="12"/>
+  <path d="M27 72C22 57 32 50 28 38C25 29 33 23 30 12"/>
+  <path d="M73 72C78 57 68 50 72 38C75 29 67 23 70 12"/>
+  <path d="M50 68C47 55 55 48 50 36"/>
+  <circle cx="41" cy="50" r="5.4"/>
+  <circle cx="61" cy="36" r="3.8"/>
+  <circle cx="49" cy="23" r="2.6"/>
+`);
+
 /** Keyed by the ids in `ELEMENTS`. */
 export const ELEMENT_SIGILS = {
   ice: ICE,
@@ -130,5 +150,6 @@ export const ELEMENT_SIGILS = {
   beam: BEAM,
   snare: SNARE,
   glacier: GLACIER,
-  ward: WARD
+  ward: WARD,
+  acid: ACID
 };

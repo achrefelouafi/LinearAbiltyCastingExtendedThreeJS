@@ -99,6 +99,10 @@ export class InputManager extends EventEmitter {
       case 'Digit7':
         this.emit('action', 'ability', 6);
         break;
+      case 'KeyZ':
+      case 'Digit8':
+        this.emit('action', 'ability', 7);
+        break;
       case 'Escape':
         this.emit('action', 'cancel');
         break;

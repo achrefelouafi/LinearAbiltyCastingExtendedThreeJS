@@ -5,6 +5,7 @@ import { BeamAbility } from './BeamAbility.js';
 import { SnareAbility } from './SnareAbility.js';
 import { GlacierAbility } from './GlacierAbility.js';
 import { WardAbility } from './WardAbility.js';
+import { AcidAbility } from './AcidAbility.js';
 import { ELEMENTS } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
@@ -16,7 +17,8 @@ const ABILITY_TYPES = {
   beam: BeamAbility,
   snare: SnareAbility,
   glacier: GlacierAbility,
-  ward: WardAbility
+  ward: WardAbility,
+  acid: AcidAbility
 };
 
 const MAX_CONCURRENT = 4;

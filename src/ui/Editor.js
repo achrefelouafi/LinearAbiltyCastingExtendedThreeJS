@@ -41,6 +41,7 @@ export class Editor {
     this._buildSnare();
     this._buildGlacier();
     this._buildWard();
+    this._buildAcid();
     this._buildEnvironment();
     this._buildPost();
     this._buildCamera();
@@ -1828,6 +1829,241 @@ export class Editor {
     light.addColor(c, 'lightColor').name('light colour');
 
     this.wardFolder = folder;
+  }
+
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * The Caustic Bloom.
+   *
+   * Grouped the way the reference sheet is: one folder per pass, in the order
+   * you see them — the floor dissolves, the ring snaps out, the gas climbs, the
+   * bubbles come off it, the air warps. `The boil` sits at the top with the
+   * cast, because it is the one group that reaches into all of them: drop
+   * `boilDepth` to zero and the aura goes inert, every pass at once.
+   *
+   * `mist steps` is the performance dial. It is a live slider on purpose — the
+   * same build has to run on a laptop and on the machine driving the projector.
+   */
+  _buildAcid() {
+    const folder = this.gui.addFolder('☣  Caustic Bloom');
+    const c = settings.acid;
+    const R = Editor.range;
+
+    const cast = folder.addFolder('The cast');
+    R(cast, c, 'zoneRadius', 0.5, 14, 0.05, 'footprint radius');
+    R(cast, c, 'range', 2, 50, 0.1, 'max range');
+    R(cast, c, 'minRange', 0, 10, 0.1, 'min range');
+    R(cast, c, 'speed', 5, 300, 1, 'corrosion speed');
+    R(cast, c, 'bloomTime', 0.02, 2, 0.01, 'bloom time');
+    R(cast, c, 'lifetime', 0.2, 16, 0.05, 'hold time');
+    R(cast, c, 'fadeTime', 0.05, 5, 0.01, 'go-inert time');
+    R(cast, c, 'cooldown', 0, 8, 0.05, 'cooldown');
+    Editor.castAnimation(cast, c);
+
+    const boil = folder.addFolder('The boil');
+    R(boil, c, 'boilRate', 0.05, 8, 0.05, 'envelope speed');
+    R(boil, c, 'boilSharp', 0.2, 8, 0.05, 'surge sharpness');
+    R(boil, c, 'boilDepth', 0, 2, 0.01, 'modulation depth');
+    R(boil, c, 'boilThreshold', 0.05, 0.98, 0.01, 'vent threshold');
+    R(boil, c, 'goutBubbles', 0, 300, 1, 'bubbles / vent');
+    R(boil, c, 'goutMotes', 0, 500, 1, 'motes / vent');
+    R(boil, c, 'goutLift', 0.2, 5, 0.05, 'vent lift');
+    R(boil, c, 'goutRing', 0, 2, 0.01, 'ring brightness');
+    R(boil, c, 'goutShake', 0, 0.6, 0.005, 'camera knock');
+
+    const pool = folder.addFolder('The acid pool');
+    R(pool, c, 'poolPlates', 0.1, 6, 0.01, 'plates / metre');
+    R(pool, c, 'poolCraze', 0, 1.5, 0.01, 'fine crazing');
+    R(pool, c, 'poolWarp', 0, 2, 0.01, 'domain warp');
+    R(pool, c, 'poolSeam', 0.005, 0.4, 0.001, 'channel width');
+    R(pool, c, 'poolSeamGlow', 0, 10, 0.05, 'channel glow');
+    R(pool, c, 'poolCrust', 0, 1, 0.01, 'crust opacity');
+    R(pool, c, 'poolRelief', 0, 3, 0.01, 'plate relief');
+    R(pool, c, 'poolSheen', 0, 4, 0.01, 'wet sheen');
+    R(pool, c, 'poolGloss', 0, 1, 0.01, 'gloss tightness');
+    R(pool, c, 'poolEtch', 0, 2, 0.01, 'edge chew');
+    R(pool, c, 'poolEtchScale', 0.1, 8, 0.05, 'chew scale');
+    R(pool, c, 'poolPits', 0, 1, 0.01, 'plates eaten through');
+    R(pool, c, 'poolPitScale', 0.1, 8, 0.05, 'pits / metre');
+    R(pool, c, 'poolBoilRate', 0, 4, 0.01, 'surface bubbles');
+    R(pool, c, 'poolHeat', 0, 4, 0.01, 'acid brightness');
+    R(pool, c, 'poolHeatFalloff', 0.1, 5, 0.05, 'brightness falloff');
+    R(pool, c, 'poolSpend', 0, 1, 0.01, 'spent over life');
+    R(pool, c, 'poolFlow', -3, 3, 0.01, 'channel crawl');
+    R(pool, c, 'poolCaustic', 0, 3, 0.01, 'caustics');
+    R(pool, c, 'poolCausticScale', 0.1, 8, 0.05, 'caustic scale');
+    R(pool, c, 'poolBoundary', 0.01, 1.5, 0.005, 'boundary band');
+    R(pool, c, 'poolBoundaryGlow', 0, 8, 0.05, 'band glow');
+    R(pool, c, 'poolCore', 0, 5, 0.01, 'centre pool');
+    R(pool, c, 'poolCoreSize', 0.02, 1, 0.005, 'pool size');
+    R(pool, c, 'poolRings', 0, 10, 0.05, 'pressure rings');
+    R(pool, c, 'poolRingSpeed', -5, 5, 0.01, 'ring speed');
+    R(pool, c, 'poolOpacity', 0, 2, 0.01, 'opacity');
+    R(pool, c, 'poolHeight', 0.005, 0.3, 0.002, 'hover height');
+    pool.addColor(c, 'colorSludge').name('sludge');
+    pool.addColor(c, 'colorPlate').name('plate');
+    pool.addColor(c, 'colorAcid').name('acid');
+    pool.addColor(c, 'colorAcidHot').name('acid core');
+    pool.addColor(c, 'colorPoolEdge').name('band & pool');
+
+    const mist = folder.addFolder('The toxic mist');
+    R(mist, c, 'mistSteps', 6, 64, 1, 'mist steps (cost)');
+    R(mist, c, 'mistHeight', 0.5, 16, 0.05, 'column height');
+    R(mist, c, 'riseCurve', 0.2, 4, 0.01, 'rise curve');
+    R(mist, c, 'mistDensity', 0, 6, 0.01, 'density');
+    R(mist, c, 'mistAbsorb', 0.05, 6, 0.01, 'absorption');
+    R(mist, c, 'mistScale', 0.05, 2, 0.005, 'features / metre');
+    R(mist, c, 'mistDetail', 0.2, 6, 0.05, 'filament scale');
+    R(mist, c, 'mistFilament', 0, 1, 0.01, 'filaments vs billows');
+    R(mist, c, 'mistThreshold', 0, 0.9, 0.01, 'carve threshold');
+    R(mist, c, 'mistRise', -3, 3, 0.01, 'climb speed');
+    R(mist, c, 'mistStretch', 0.05, 1.5, 0.01, 'vertical stretch');
+    R(mist, c, 'mistTwist', -6, 6, 0.05, 'vortex twist');
+    R(mist, c, 'mistSpin', -1, 1, 0.005, 'column spin');
+    R(mist, c, 'mistEdge', 0, 1, 0.01, 'wall softness');
+    R(mist, c, 'mistFlare', -0.4, 1.5, 0.01, 'chimney flare');
+    R(mist, c, 'mistFalloff', 0.1, 5, 0.01, 'thinning with height');
+    R(mist, c, 'mistSkirt', 0, 1, 0.01, 'spill past the edge');
+    R(mist, c, 'mistLobe', 0, 1, 0.01, 'wall wander');
+    R(mist, c, 'mistTear', 0, 0.6, 0.005, 'crown tearing');
+    R(mist, c, 'mistGroundGlow', 0, 6, 0.01, 'lit from the pool');
+    R(mist, c, 'mistGroundFalloff', 0.05, 3, 0.01, 'that light falloff');
+    R(mist, c, 'mistShadow', 0, 8, 0.05, 'self-shadow');
+    R(mist, c, 'mistShadowStep', 0.05, 4, 0.05, 'shadow tap, metres');
+    R(mist, c, 'mistAmbient', 0, 1, 0.005, 'ambient');
+    R(mist, c, 'mistSaturate', 0, 5, 0.01, 'deepening with density');
+    R(mist, c, 'mistOpacity', 0, 2, 0.01, 'opacity');
+    R(mist, c, 'mistGlow', 0, 4, 0.01, 'glow');
+    mist.addColor(c, 'colorMistDeep').name('thick gas');
+    mist.addColor(c, 'colorMistBody').name('body');
+    mist.addColor(c, 'colorMistEdge').name('thin gas');
+    mist.addColor(c, 'colorMistLight').name('sunlight through');
+
+    const ring = folder.addFolder('The base ring');
+    R(ring, c, 'ringInset', -1, 1.5, 0.005, 'stand-off');
+    R(ring, c, 'ringHeight', 0.005, 0.3, 0.002, 'hover height');
+    R(ring, c, 'ringWidth', 0.005, 0.5, 0.001, 'core width');
+    R(ring, c, 'ringCore', 0, 8, 0.01, 'core brightness');
+    R(ring, c, 'ringHalo', 0, 4, 0.01, 'halo');
+    R(ring, c, 'ringHaloWidth', 0.02, 3, 0.01, 'halo width');
+    R(ring, c, 'ringSpill', 0, 1.5, 0.01, 'inward spill');
+    R(ring, c, 'ringWobble', 0, 0.25, 0.001, 'radius wander');
+    R(ring, c, 'ringWobbleScale', 0.2, 10, 0.05, 'wander scale');
+    R(ring, c, 'ringChevrons', 0, 120, 1, 'chevrons');
+    R(ring, c, 'ringChevronDepth', 0, 1, 0.01, 'chevron depth');
+    R(ring, c, 'ringScroll', -1, 1, 0.005, 'chevron scroll');
+    R(ring, c, 'ringSweep', 0, 4, 0.01, 'read head');
+    R(ring, c, 'ringSweepSpeed', -2, 2, 0.005, 'head speed');
+    R(ring, c, 'ringSweepWidth', 0.01, 0.6, 0.005, 'head width');
+    R(ring, c, 'ringTicks', 0, 24, 1, 'compass ticks');
+    R(ring, c, 'ringOpacity', 0, 2, 0.01, 'opacity');
+    R(ring, c, 'ringGlow', 0, 6, 0.01, 'glow');
+    R(ring, c, 'collarHeight', 0, 3, 0.01, 'collar height');
+    R(ring, c, 'collarGain', 0, 5, 0.01, 'collar gain');
+    R(ring, c, 'collarFalloff', 0.2, 6, 0.01, 'collar falloff');
+    R(ring, c, 'collarFresnel', 0.2, 6, 0.05, 'collar rim');
+    R(ring, c, 'collarStreaks', 2, 90, 1, 'collar streaks');
+    R(ring, c, 'collarStreakDepth', 0, 1, 0.01, 'streak depth');
+    R(ring, c, 'collarStreakSpeed', -4, 4, 0.01, 'streak speed');
+    R(ring, c, 'collarSoftFade', 0.02, 3, 0.01, 'soft intersection');
+    R(ring, c, 'collarOpacity', 0, 2, 0.01, 'collar opacity');
+    ring.addColor(c, 'colorRing').name('ring');
+    ring.addColor(c, 'colorRingCore').name('ring core');
+
+    const fume = folder.addFolder('Corrosive shimmer');
+    R(fume, c, 'fumeStrength', 0, 4, 0.01, 'strength');
+    R(fume, c, 'fumeScale', 0.1, 8, 0.05, 'scale');
+    R(fume, c, 'fumeSpeed', 0, 6, 0.01, 'rise speed');
+    R(fume, c, 'fumeSwirl', -2, 2, 0.01, 'roll with height');
+    R(fume, c, 'fumeHeight', 0.1, 3, 0.01, 'height, × the column');
+    R(fume, c, 'fumeWidth', 0.1, 3, 0.01, 'width, × footprint');
+    R(fume, c, 'fumeFalloff', 0.1, 4, 0.01, 'falloff');
+
+    const bubbles = folder.addFolder('Bubbles & motes');
+    R(bubbles, c, 'bubbleRate', 0, 300, 1, 'bubble rate');
+    R(bubbles, c, 'bubbleSize', 0.01, 1.2, 0.005, 'bubble size');
+    R(bubbles, c, 'bubbleSpeed', 0, 15, 0.05, 'bubble speed');
+    R(bubbles, c, 'bubbleLifetime', 0.1, 8, 0.05, 'bubble lifetime');
+    R(bubbles, c, 'bubbleRise', -5, 12, 0.05, 'buoyancy');
+    R(bubbles, c, 'bubbleTurbulence', 0, 3, 0.01, 'wander');
+    R(bubbles, c, 'bubbleGrow', 0.5, 5, 0.05, 'growth before bursting');
+    R(bubbles, c, 'bubbleInset', 0, 0.95, 0.01, 'pick-up inset');
+    R(bubbles, c, 'bubbleOpacity', 0, 1.5, 0.01, 'bubble opacity');
+    Editor.gradient(bubbles, c, 'colorBubble', 'Bubble colour');
+    R(bubbles, c, 'moteRate', 0, 900, 1, 'mote rate');
+    R(bubbles, c, 'moteSize', 0.005, 0.4, 0.005, 'mote size');
+    R(bubbles, c, 'moteSpeed', 0, 20, 0.1, 'mote speed');
+    R(bubbles, c, 'moteLifetime', 0.1, 6, 0.05, 'mote lifetime');
+    R(bubbles, c, 'moteRise', -5, 15, 0.1, 'lift');
+    R(bubbles, c, 'moteTurbulence', 0, 4, 0.01, 'swirl');
+    Editor.gradient(bubbles, c, 'colorMote', 'Mote colour');
+
+    const spill = folder.addFolder('Fog & splatter');
+    R(spill, c, 'fogRate', 0, 400, 1, 'fog rate');
+    R(spill, c, 'fogSize', 0.05, 4, 0.01, 'fog size');
+    R(spill, c, 'fogSpeed', 0, 8, 0.05, 'fog speed');
+    R(spill, c, 'fogLifetime', 0.2, 8, 0.05, 'fog lifetime');
+    R(spill, c, 'fogOpacity', 0, 1, 0.005, 'fog opacity');
+    R(spill, c, 'fogRise', -2, 4, 0.01, 'fog rise');
+    R(spill, c, 'fogSpread', 0, 3, 0.01, 'outward push');
+    Editor.gradient(spill, c, 'colorFog', 'Fog colour');
+    R(spill, c, 'splashRate', 0, 200, 1, 'splatter rate');
+    R(spill, c, 'splashSize', 0.005, 0.5, 0.005, 'droplet size');
+    R(spill, c, 'splashSpeed', 0, 25, 0.1, 'droplet speed');
+    R(spill, c, 'splashLifetime', 0.1, 5, 0.05, 'droplet lifetime');
+    R(spill, c, 'splashGravity', -50, 0, 0.1, 'gravity');
+    R(spill, c, 'splashOpacity', 0, 1.5, 0.01, 'opacity');
+    Editor.gradient(spill, c, 'colorSplash', 'Splatter colour');
+
+    const ground = folder.addFolder('Marks on the ground');
+    R(ground, c, 'etchRadius', 0.05, 10, 0.05, 'etch radius');
+    R(ground, c, 'etchLife', 0.5, 20, 0.1, 'etch lifetime');
+    R(ground, c, 'etchIntensity', 0, 2, 0.01, 'etch intensity');
+    R(ground, c, 'stainRate', 0, 30, 0.1, 'stains / sec');
+    R(ground, c, 'stainRadius', 0.05, 4, 0.05, 'stain radius');
+    R(ground, c, 'stainLife', 0.2, 15, 0.1, 'stain lifetime');
+    R(ground, c, 'stainIntensity', 0, 2, 0.01, 'stain intensity');
+    R(ground, c, 'trailRate', 0.05, 8, 0.05, 'creep marks / metre');
+    R(ground, c, 'shockRadius', 0.5, 25, 0.1, 'bloom ring radius');
+    R(ground, c, 'ringRate', 0, 12, 0.1, 'vapour rings / sec');
+    ground.addColor(c, 'colorEtch').name('etch');
+    ground.addColor(c, 'colorStain').name('stain');
+    ground.addColor(c, 'colorStainEdge').name('stain edge');
+    ground.addColor(c, 'colorShockA').name('shockwave ring');
+    ground.addColor(c, 'colorShockB').name('shockwave crest');
+
+    const impact = folder.addFolder('Throw, bloom & hold');
+    R(impact, c, 'handHeight', 0, 3, 0.01, 'hand height');
+    R(impact, c, 'handForward', -1, 3, 0.01, 'hand forward');
+    R(impact, c, 'handSide', -1.5, 1.5, 0.01, 'hand lateral');
+    R(impact, c, 'muzzleSize', 0.05, 6, 0.05, 'muzzle size');
+    R(impact, c, 'muzzleIntensity', 0, 5, 0.01, 'muzzle intensity');
+    R(impact, c, 'castFlash', 0, 2, 0.01, 'flash on release');
+    R(impact, c, 'burstSize', 0.2, 14, 0.05, 'bloom shell size');
+    R(impact, c, 'burstIntensity', 0, 5, 0.01, 'bloom shell intensity');
+    R(impact, c, 'bloomBubbles', 0, 600, 1, 'bloom bubbles');
+    R(impact, c, 'bloomMotes', 0, 900, 1, 'bloom motes');
+    R(impact, c, 'bloomSplash', 0, 600, 1, 'bloom splatter');
+    R(impact, c, 'bloomShake', 0, 3, 0.01, 'bloom shake');
+    R(impact, c, 'shakeDuration', 0.1, 4, 0.01, 'shake duration');
+    R(impact, c, 'bloomFlash', 0, 2, 0.01, 'bloom flash');
+    R(impact, c, 'holdShake', 0, 0.5, 0.005, 'hold rumble');
+    R(impact, c, 'rumble', 0, 0.5, 0.005, 'creep rumble');
+    impact.addColor(c, 'colorBurstA').name('shell inner');
+    impact.addColor(c, 'colorBurstB').name('shell mid');
+    impact.addColor(c, 'colorBurstC').name('shell core');
+    impact.addColor(c, 'colorCastFlash').name('release flash');
+    impact.addColor(c, 'colorFlash').name('bloom flash');
+
+    const light = folder.addFolder('Dynamic light');
+    R(light, c, 'lightIntensity', 0, 120, 0.5, 'light intensity');
+    R(light, c, 'lightRadius', 0.5, 50, 0.1, 'light radius');
+    R(light, c, 'lightHeight', 0, 1, 0.01, 'height up the column');
+    R(light, c, 'lightBoil', 0, 1, 0.01, 'owned by the boil');
+    light.addColor(c, 'lightColor').name('light colour');
+
+    this.acidFolder = folder;
   }
 
   /* ------------------------------------------------------------------ */

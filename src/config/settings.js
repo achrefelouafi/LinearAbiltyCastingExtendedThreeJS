@@ -2160,6 +2160,285 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
+  /* Caustic Bloom — the poison acid aura                                */
+  /* ------------------------------------------------------------------ */
+  /**
+   * Five passes, one per panel of the reference sheet: the acid pool on the
+   * floor, the raymarched mist standing in it, the bubbles coming off it, the
+   * corrosive shimmer over it and the ring it all stands on.
+   *
+   * **The boil is what makes those five things one thing.** `boilRate` drives a
+   * single irregular envelope that every pass, the light, the emitters and the
+   * camera read once per frame — see `AcidAbility#_advanceBoil`. Set
+   * `boilDepth` to 0 and the whole aura goes flat and inert, every pass at once.
+   */
+  acid: {
+    /* --- the cast --- */
+    range: 20.0, // maximum cast distance, metres
+    minRange: 0.0, // it is an aura: dropping it on your own feet is the point
+    zoneRadius: 4.4, // the footprint — what the circle indicator measures out
+    speed: 68.0, // how fast the corrosion runs to the point, metres/second
+    bloomTime: 0.42, // seconds the pool takes to open once the corrosion lands
+    lifetime: 5.6, // seconds it stands
+    fadeTime: 1.5, // seconds it takes to go inert
+    cooldown: 2.2,
+    castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
+
+    /* --- the boil: the irregular pulse every pass is driven off --- */
+    /**
+     * Not a heartbeat. A chemical reaction has no metronome — it surges when
+     * enough gas has built up under the crust and subsides when it vents — so
+     * this envelope is a sum of three incommensurate sines, which never repeats
+     * inside a cast and never lands on the beat you are expecting. `boilSharp`
+     * is what keeps it from reading as a slow throb: raised to a power the
+     * envelope spends most of its time low and spikes, the way a boil does.
+     */
+    boilRate: 2.0, // how fast the envelope runs
+    boilSharp: 2.6, // >1 spikes it: mostly still, with surges
+    boilDepth: 0.9, // how hard it modulates everything, 0 = inert
+    boilThreshold: 0.55, // the level a surge has to cross to vent a gout
+    goutBubbles: 22, // bubbles thrown up when it vents
+    goutMotes: 90, // ... and motes
+    goutRing: 0.3, // brightness of the ring it pushes across the pool
+    goutShake: 0.035, // the knock on the camera
+    goutLift: 1.7, // extra upward speed on the gout
+
+    /* --- where the corrosion leaves the caster --- */
+    handHeight: 1.15, // metres above the floor
+    handForward: 0.6, // metres in front of the caster
+    handSide: -0.16, // metres to the side (+ follows `Ability#side`)
+
+    /* --- the pool --- */
+    /**
+     * Alpha blended, because the acid has to *eat* the floor — an additive pool
+     * is a decal that glows with the granite showing straight through it. The
+     * plates are lit off a world-space gradient of their own height field, and
+     * the surface carries a real specular lobe: everything else on this stage is
+     * rough, and the gloss is what says *liquid*.
+     */
+    // Big plates with a fine crazing over them. Cells much under a metre turn
+    // the floor into a uniform glowing web at any sane camera distance, and the
+    // read you want is *stone with channels of acid in it*.
+    poolPlates: 0.62, // plates per metre
+    poolCraze: 0.55, // the finer network laid over them
+    poolWarp: 0.45, // domain warp on the cell centres
+    poolSeam: 0.05, // width of a channel, cell space
+    poolSeamGlow: 1.15,
+    poolCrust: 0.95, // how opaque the sludge crust is
+    poolRelief: 0.8, // fake lighting across the plates
+    poolSheen: 0.32, // the specular lobe — what says "wet"
+    poolGloss: 0.42, // 0 = broad and dull, 1 = a tight highlight
+    poolEtch: 0.35, // how much the growing edge is chewed by its own noise
+    poolEtchScale: 1.6,
+    poolPits: 0.12, // fraction of plates eaten clean through
+    poolPitScale: 1.6, // pits per metre
+    poolBoilRate: 0.5, // surface bubbles bursting, per second per cell
+    poolHeat: 0.55, // master brightness of the live acid
+    poolHeatFalloff: 1.4, // how fast it goes inert toward the boundary
+    poolSpend: 0.6, // how much it spends over the bloom's life
+    poolFlow: 0.5, // how fast brightness crawls along a channel
+    poolCaustic: 0.25, // interference on the standing acid
+    poolCausticScale: 2.2,
+    poolBoundary: 0.16, // the bleached band on the footprint, metres
+    poolBoundaryGlow: 0.4,
+    poolCore: 0.12, // the brighter pool in the middle
+    poolCoreSize: 0.4, // its radius, × footprint
+    poolRings: 1.3, // pressure rings running out of the middle
+    poolRingSpeed: 0.4,
+    poolOpacity: 1.0,
+    poolHeight: 0.022, // hover distance above the floor, metres
+    colorSludge: '#0a1104',
+    colorPlate: '#24310c',
+    colorAcid: '#8fff1e',
+    colorAcidHot: '#dcff9a',
+    colorPoolEdge: '#b6ff2e',
+
+    /* --- the mist: a raymarched volume --- */
+    /**
+     * The one pass here that cannot be faked with billboards. `mistSteps` is the
+     * whole performance dial — it is a live slider precisely so a demo machine
+     * and a laptop can run the same build. Everything else shapes the cloud:
+     * `mistThreshold` carves empty space out of the noise (raise it for torn
+     * wisps, drop it for a solid fog), `mistTwist` is the vortex it climbs on,
+     * and `mistGroundGlow` is the pool lighting it from below — which is the
+     * single term that stops it being green fog.
+     */
+    mistHeight: 5.2, // how high the column stands, metres
+    riseCurve: 1.25, // >1 makes it hang low then climb
+    mistSteps: 26, // samples per pixel through the volume
+    mistDensity: 2.9, // master density
+    mistAbsorb: 1.45, // how fast it goes opaque along the ray
+    mistScale: 0.5, // noise features per metre
+    mistDetail: 1.9, // frequency of the filament layer
+    mistFilament: 0.5, // how much of it is filaments rather than billows
+    mistThreshold: 0.52, // below this there is simply no gas
+    mistRise: 0.5, // how fast the field climbs
+    mistStretch: 0.32, // <1 elongates the gas vertically — a plume, not fog
+    mistTwist: 1.2, // radians the column turns over its height
+    mistSpin: 0.02, // revolutions/second the whole cloud turns
+    mistEdge: 0.45, // where the wall starts to soften, × radius
+    mistFlare: 0.4, // how far the chimney opens with height
+    mistFalloff: 1.5, // how fast it thins toward the crown
+    mistSkirt: 0.22, // how far it spills past the boundary at the floor
+    mistLobe: 0.32, // how far the wall wanders — what stops it being a can
+    mistTear: 0.24, // how much harder the crown is carved than the body
+    mistGroundGlow: 1.15, // the pool lighting it from underneath
+    mistGroundFalloff: 0.85, // how fast that light dies with height
+    mistShadow: 2.2, // self-shadowing against the sun
+    mistShadowStep: 0.9, // metres to the shadow tap
+    mistAmbient: 0.05,
+    mistSaturate: 2.2, // how much thick gas deepens in colour
+    mistOpacity: 1.0,
+    mistGlow: 0.85,
+    colorMistDeep: '#0a1e05', // thick gas, in the middle of the cloud
+    colorMistBody: '#4f8f1c',
+    colorMistEdge: '#b7f25a', // thin gas, at its edges
+    colorMistLight: '#93a862', // the sun coming through it
+
+    /* --- the ring at its foot --- */
+    /**
+     * Two meshes: a flat annulus on the floor for the bloom, and a short
+     * standing collar so the band still has a silhouette when the camera drops
+     * to eye level — which is the angle the game is actually played at.
+     */
+    ringInset: 0.0, // how far outside the footprint it sits, metres
+    ringHeight: 0.03, // hover distance above the floor, metres
+    ringWidth: 0.085, // half-width of the blown-out core, metres
+    ringCore: 1.5, // brightness of that core
+    ringHalo: 0.4, // the broad glow either side of it
+    ringHaloWidth: 0.4, // metres
+    ringSpill: 0.1, // the wash spilling inward across the pool
+    ringWobble: 0.008, // how far the radius wanders — a perfect circle reads as UI
+    ringWobbleScale: 2.6,
+    ringChevrons: 34, // energy marks around the band
+    ringChevronDepth: 0.32,
+    ringScroll: 0.05, // revolutions/second they travel
+    ringSweep: 1.1, // brightness of the read head running round it
+    ringSweepSpeed: 0.2, // revolutions/second
+    ringSweepWidth: 0.12,
+    ringTicks: 6, // heavier marks on the compass points
+    ringOpacity: 1.0,
+    ringGlow: 0.95,
+    collarHeight: 0.55, // how far the standing band rises, metres
+    collarGain: 0.5,
+    collarFalloff: 2.3, // how fast it dies toward its top
+    collarFresnel: 1.6, // grazing-angle boost — a sheet of light seen edge-on
+    collarStreaks: 16, // vertical filaments licking off the band
+    collarStreakDepth: 0.35,
+    collarStreakSpeed: 1.1,
+    collarSoftFade: 0.4, // metres of soft fade where it meets geometry
+    collarOpacity: 1.0,
+    colorRing: '#9dff2b',
+    colorRingCore: '#f4ffd6',
+
+    /* --- the corrosive shimmer --- */
+    fumeStrength: 0.75,
+    fumeScale: 1.9, // features per metre
+    fumeSpeed: 1.1, // how fast it rises
+    fumeSwirl: 0.35, // how much it rolls about the column with height
+    fumeHeight: 1.05, // × the mist height
+    fumeWidth: 0.95, // × the footprint
+    fumeFalloff: 1.3, // how fast it thins with height
+
+    /* --- bubbles, motes, fog and splatter --- */
+    /**
+     * Four systems, and the split matters: the bubbles are non-additive films
+     * with a catchlight and a burst so they read as gas held in a skin, the
+     * motes are additive sparks of live acid, the fog is the low spill that
+     * stops the volume's boundary being a visible wall, and the splatter is
+     * thrown liquid that actually lands and stains.
+     */
+    bubbleRate: 44, // bubbles/second off the pool
+    bubbleSize: 0.16,
+    bubbleSpeed: 1.05,
+    bubbleLifetime: 1.6,
+    bubbleRise: 0.45, // upward acceleration, m/s²
+    bubbleTurbulence: 0.5,
+    bubbleInset: 0.05, // how far inside the boundary they are picked up
+    bubbleGrow: 1.45, // how much bigger they get before they burst
+    bubbleOpacity: 0.85,
+    colorBubbleA: '#e8ffbe',
+    colorBubbleB: '#a6ff3c',
+    colorBubbleC: '#3d8a10',
+    colorBubbleD: '#1c3a06',
+    moteRate: 110, // sparks/second off the channels
+    moteSize: 0.05,
+    moteSpeed: 2.0,
+    moteLifetime: 1.4,
+    moteRise: 1.5,
+    moteTurbulence: 1.2,
+    colorMoteA: '#f2ffd2',
+    colorMoteB: '#b6ff3a',
+    colorMoteC: '#57c414',
+    colorMoteD: '#16300a',
+    fogRate: 46,
+    fogSize: 1.05,
+    fogSpeed: 0.9,
+    fogLifetime: 2.9,
+    fogOpacity: 0.06,
+    fogRise: 0.35,
+    fogSpread: 0.55, // how hard it is pushed outward across the floor
+    colorFogA: '#63823a',
+    colorFogB: '#455e22',
+    colorFogC: '#2c3e14',
+    colorFogD: '#16210a',
+    splashRate: 16, // droplets/second thrown off the boil
+    splashSize: 0.085,
+    splashSpeed: 4.4,
+    splashLifetime: 1.2,
+    splashGravity: -17.0,
+    splashOpacity: 0.95,
+    colorSplashA: '#c8ff62',
+    colorSplashB: '#78d418',
+    colorSplashC: '#3d7f0c',
+    colorSplashD: '#16300a',
+
+    /* --- what else the ground does --- */
+    etchRadius: 1.5, // the burn the bloom stands on, metres
+    etchLife: 9.0,
+    etchIntensity: 0.1,
+    stainRate: 1.4, // acid marks laid inside the ring, per second
+    stainRadius: 0.6, // radius of one, metres
+    stainLife: 5.0,
+    stainIntensity: 0.22,
+    trailRate: 0.9, // marks laid per metre while the corrosion runs out
+    shockRadius: 7.5, // the ring thrown when the pool opens, metres
+    ringRate: 0.28, // vapour rings pushed out while it stands, per second
+    colorEtch: '#141c09',
+    colorStain: '#2f4a08',
+    colorStainEdge: '#5c8f14',
+    colorShockA: '#8fff1e',
+    colorShockB: '#b6f05a',
+
+    /* --- dynamic light --- */
+    lightIntensity: 18,
+    lightRadius: 20,
+    lightHeight: 0.22, // how far up the column the light sits, 0..1
+    lightColor: '#7bf01c',
+    lightBoil: 0.55, // how much of the light the boil owns
+
+    /* --- the throw, the bloom and the hold --- */
+    muzzleSize: 0.5, // the flash at the hand as the corrosion leaves it
+    muzzleIntensity: 1.5,
+    castFlash: 0.08, // screen flash on release
+    colorCastFlash: '#a8ff3a',
+    burstSize: 2.2, // the shell of vapour thrown as the pool opens, metres
+    burstIntensity: 1.0,
+    bloomBubbles: 60, // extra bubbles as it opens
+    bloomMotes: 260, // ... motes
+    bloomSplash: 180, // ... and droplets
+    bloomShake: 0.7,
+    shakeDuration: 0.7,
+    bloomFlash: 0.22,
+    holdShake: 0.035, // continuous rumble while it stands
+    rumble: 0.025, // rumble while the corrosion runs out
+    colorBurstA: '#7ee01a',
+    colorBurstB: '#b6ff3a',
+    colorBurstC: '#e9ffb4',
+    colorFlash: '#8fff28' // the full-screen flash when the pool opens
+  },
+
+  /* ------------------------------------------------------------------ */
   /* Camera rig                                                          */
   /* ------------------------------------------------------------------ */
   camera: {
@@ -2276,7 +2555,16 @@ export const CastShape = Object.freeze({
  * array, and the index is the slot the keyboard binds to — adding a third
  * ability is a new file, an entry here and a settings block above.
  */
-export const ELEMENTS = ['ice', 'thunder', 'meteor', 'beam', 'snare', 'glacier', 'ward'];
+export const ELEMENTS = [
+  'ice',
+  'thunder',
+  'meteor',
+  'beam',
+  'snare',
+  'glacier',
+  'ward',
+  'acid'
+];
 
 /**
  * Registry metadata: how an ability is presented, and how it is aimed.
@@ -2308,6 +2596,13 @@ export const ELEMENT_META = {
     accent: '#ff4a2a',
     key: 'B',
     hint: 'Volcanic Horror Ward',
+    cast: CastShape.ZONE
+  },
+  acid: {
+    label: 'Caustic Bloom',
+    accent: '#9dff2b',
+    key: 'Z',
+    hint: 'Poison Acid Aura',
     cast: CastShape.ZONE
   }
 };

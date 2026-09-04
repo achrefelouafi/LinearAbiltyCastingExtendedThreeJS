@@ -2,10 +2,10 @@
 
 A skillshot VFX sandbox built with **Three.js**, **Vite** and hand-written **GLSL**.
 
-Five abilities and two ways to aim them. Four are **line casts**: press the key to arm, a
+Eight abilities and two ways to aim them. Four are **line casts**: press the key to arm, a
 League-of-Legends style arrow appears on the ground and swings with the mouse, click to fire. The
-fifth is a **far cast**: the arrow is replaced by a circle with a deliberately thick boundary that
-follows the cursor and answers the only question a ground-targeted AoE has to answer before you
+other four are **far casts**: the arrow is replaced by a circle with a deliberately thick boundary
+that follows the cursor and answers the only question a ground-targeted AoE has to answer before you
 commit — how much space is this going to take.
 
 **Q — Frost Lance.** A fracture front races out along the line while a field of ice crystals
@@ -34,6 +34,14 @@ out of the middle, tendrils crawl outward to the boundary, arcs run around the r
 disc burns. It holds there re-striking and hauling the air up into the pillar, then collapses to a
 thread. The circle you measured out before the click is exactly the circle you get.
 
+**Z — Caustic Bloom.** A far cast, and a poison acid aura. A slick of corrosion runs across the
+floor to the circle; the stone inside it crazes, pits and dissolves into a pool of live acid with
+bubbles breaking on its surface, a ring of light snaps out along the boundary, and a **raymarched**
+column of toxic gas climbs out of the pool and stands over it — clipped against the scene depth, so
+anything inside the aura is genuinely inside the cloud rather than pasted in front of it. It holds
+there boiling on an envelope that never repeats, venting gouts of gas, then goes inert and sinks
+back into a stain.
+
 Everything you can see is generated. There are no textures, no sprite sheets and no meshes on
 disk except the character: the crystals are procedural geometry, the bolt is a strip of ribbon
 placed entirely by a vertex shader, the meteor is an icosphere cratered and sliced by fracture
@@ -42,7 +50,7 @@ whole cage is that same ribbon strip threaded along four different parametric pa
 targeting circle, the rime, the burns and the molten cracks are signed-distance and noise shaders,
 and the mist, sparks, chips and glitter are GPU particles.
 
-**Every parameter is a live slider** — 938 of them — and they stay live while the simulation is
+**Every parameter is a live slider** — 1,614 of them — and they stay live while the simulation is
 paused. That is the point of the project: freeze a frame mid-eruption, mid-strike or mid-burn with
 **P**, then reshape the silhouette, the palette and the timing against a still image.
 
@@ -115,6 +123,7 @@ shown as a visible sky. The stage keeps its flat dark backdrop.
 | **V** (or **5**) | Arm Voltaic Snare — the far cast, aimed with a circle |
 | **X** (or **6**) | Arm Glacial Crown — a far cast |
 | **B** (or **7**) | Arm Volcanic Horror Ward — a far cast |
+| **Z** (or **8**) | Arm Caustic Bloom — a far cast, and a poison acid aura |
 | **Move the mouse** | Swing the aim arrow, or move the far-cast circle |
 | **Left click** | Cast along the arrow, or drop the circle where it is |
 | **Esc** / **right click** | Cancel an armed cast |
@@ -138,7 +147,8 @@ spending one slot never locks the other out.
 ```
 src/
   abilities/      Ability base class (the travelling front), IceAbility, ThunderAbility,
-                  MeteorAbility, BeamAbility, SnareAbility, pooling manager
+                  MeteorAbility, BeamAbility, SnareAbility, GlacierAbility, WardAbility,
+                  AcidAbility, pooling manager
   animation/      FBX character loading, AnimationMixer, the per-ability cast clips,
                   the procedural cast lunge
   assets/         Procedural crystal and asteroid geometry, the bolt ribbon strip,
@@ -149,8 +159,10 @@ src/
                   light pool, shake, flash
   input/          InputManager (events) and AimController (both targeting shapes)
   loaders/        AssetLoader with a shared LoadingManager
-  materials/      IceMaterial, LightningMaterial, MeteorMaterial,
-                  VolumetricFireMaterial, BeamMaterial, SnareMaterial
+  materials/      IceMaterial, LightningMaterial, MeteorMaterial, VolumetricFireMaterial,
+                  BeamMaterial, SnareMaterial, GlacierMaterial, FrostFieldMaterial,
+                  ObsidianMaterial, WardBarrierMaterial, WardGroundMaterial,
+                  AcidPoolMaterial, ToxicMistMaterial (the raymarched volume)
   particles/      GPU particle system + engine and rate emitters
   postprocessing/ Composer pipeline, grade shader, distortion shader
   shaders/lib/    Shared GLSL: noise library, common helpers
@@ -390,6 +402,68 @@ The one thing worth stealing for the next far cast is the **snap**: the ring ope
 `Easing.outCubic` multiplied by a bump that peaks late and dies at exactly 1, so it overshoots its
 radius and pulls back onto it, and the pillar climbs on the same clock 1.7× slower. The ground goes
 first, then the air breaks down over it.
+
+### The acid
+
+The Caustic Bloom is the only ability in the set built around a **volume** rather than around
+surfaces, and it is the one that answers a question the other seven never had to: what do you do
+when the effect is not a thing standing in the world but a region of the world that has been
+*changed*.
+
+The mist is **raymarched**, not billboarded. A cylinder of gas made out of camera-facing quads dies
+the moment the camera orbits — the cards turn with you, the silhouette never changes, and anything
+standing inside the cloud is either entirely in front of every card or entirely behind it. So
+`ToxicMistMaterial` marches it:
+
+- **The mesh is a scissor, not the shape.** A closed cylinder drawn back faces only with the depth
+  test off, whose single job is to rasterise the pixels the volume could cover. Because a regular
+  polygon inscribes its circle, the proxy is scaled by `1 / cos(π / segments)` so it *circumscribes*
+  the analytic radius instead — without that the marched cloud has flats on its silhouette, which is
+  the one tell you cannot explain away.
+- **The span is analytic.** `cylinderSpan` solves the ray against an upright cylinder and clips it to
+  the height slab, giving an exact entry and exit distance. No depth peeling, no sorting, and it
+  stays correct with the camera inside the cloud.
+- **It is clipped against the scene.** The far end of the march is cut at the opaque depth prepass,
+  so a character standing in the aura is veiled by exactly the gas in front of them and none of the
+  gas behind them. That single line is the difference between an aura and a decal the character is
+  pasted on top of.
+- **It is lit from underneath.** The pool is the key light and it is *below* the gas, so emission
+  falls off with height and one tap toward the sun shades the crown. Light a cloud flat and it stops
+  being smoke over a chemical fire and becomes green fog.
+
+Cost is honest and dialled: `mistSteps` samples of a three-octave fbm plus one shadow tap, empty
+space skipped before any noise is evaluated, the march stopped as soon as the volume is opaque, and
+the step count is a **live slider** — the same build runs on a laptop and on the machine driving the
+projector.
+
+The **pool** is the counterweight. It is alpha blended rather than additive, because acid has to eat
+the floor and additive can only ever add; its crazing is a two-nearest voronoi *edge* network, which
+forks and meets at proper junctions where a threshold on a distance field gives round blobs; and it
+carries a real specular lobe off a world-space gradient of its own height field. Everything else on
+this stage is rough, and that gloss is the cheapest thing in the project that says *liquid* — take
+it out and the pool is scorched rock that happens to be green. Its boundary is pushed around by a
+noise on the bearing and bitten into by a second one, because a clean disc reads as a decal no
+matter what is drawn inside it.
+
+Gas coming off the surface is drawn **in the pool shader**, not with particles: `surfaceBoil` gives
+every cell of a jittered grid its own clock and its own size and draws the expanding rim of one
+bubble breaking the surface. Nine cheap hashes per pixel, no two cells ever in step, and it replaces
+an emitter outright.
+
+The bubbles that do get particles needed a new silhouette, so `ParticleShape.BUBBLE` was added to the
+shared system: a film is only visible where you look *through* it edge-on, so the shape is a thin
+ring rather than a disc, with a little of the far wall left across the middle, a hard white
+catchlight from the key and a soft bounce off the pool below. It does not fade out either — in the
+last of its life the film springs outward, thins and tears, which is the only ending a bubble has.
+
+**The boil is what makes the five passes one thing.** Where the Ward has a heartbeat, this has a
+sum of three sines at incommensurate frequencies (1, φ, 1+√2) raised to `boilSharp` — an envelope
+with no period, which spends most of its time near zero and spikes. A heartbeat is *supposed* to be
+regular; a chemical reaction very much is not, and within the six seconds an aura stands the surge
+never lands twice on the same rhythm. It is evaluated once per frame and handed to every material,
+the light, the emitters and the camera; when a surge crosses `boilThreshold` on the way up the aura
+**vents** — a gout of gas off the whole pool, a ring pushed across it and a knock on the camera.
+Set `boilDepth` to zero and the whole thing flatlines, every pass at once.
 
 ### Adding another ability
 

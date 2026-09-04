@@ -24,7 +24,8 @@ export const ParticleShape = Object.freeze({
   STREAK: 2, // velocity aligned spark
   LEAF: 3, // tapered leaf silhouette
   CHIP: 4, // angular rock fragment
-  RING: 5 // thin expanding ring — shockwaves
+  RING: 5, // thin expanding ring — shockwaves
+  BUBBLE: 6 // gas bubble — a film with a catchlight, that bursts rather than fades
 });
 
 const FLOATS = {
@@ -505,9 +506,14 @@ const PARTICLE_FRAGMENT = /* glsl */ `
   ${noiseGLSL}
   ${commonGLSL}
 
-  float shapeMask(vec2 uv) {
+  /**
+   * The silhouette, and — for shapes that have one — a white highlight to lay
+   * over the lifetime gradient. Everything but the bubble leaves hilite at 0.
+   */
+  float shapeMask(vec2 uv, out float hilite) {
     vec2 c = (uv - 0.5) * 2.0;
     float d = length(c);
+    hilite = 0.0;
 
     #if SHAPE == 0                       // SOFT
       return smoothstep(1.0, 0.0, d);
@@ -532,15 +538,40 @@ const PARTICLE_FRAGMENT = /* glsl */ `
       float r = 0.62 + 0.24 * sin(ang * 5.0 + vSeed * 30.0) + 0.1 * sin(ang * 9.0 - vSeed * 11.0);
       return smoothstep(r, r - 0.14, d);
 
-    #else                                // RING
+    #elif SHAPE == 5                     // RING
       return smoothstep(0.14, 0.0, abs(d - 0.82));
+
+    #else                                // BUBBLE
+      // A gas bubble, not a dot of light. Four things make it one: the film is
+      // only visible where you look *through* it edge-on, so the silhouette is a
+      // thin ring rather than a disc; a little of it still crosses the middle,
+      // because you always see a bubble's far wall through its near one; it
+      // carries a hard catchlight from the key and a soft one bounced off
+      // whatever it is floating over; and it does not fade out — the film
+      // springs outward, thins and tears, which is the only ending a bubble has.
+      float pop = smoothstep(0.88, 1.0, vT);
+      float r = mix(0.92, 1.30, pop);
+
+      float outer = smoothstep(r, r - mix(0.07, 0.03, pop), d);
+      float inner = smoothstep(r - mix(0.10, 0.05, pop), r - mix(0.21, 0.13, pop), d);
+      float rim = clamp(outer - inner, 0.0, 1.0);
+      float belly = inner * mix(0.12, 0.0, pop);
+
+      // Offset per particle, or a cluster reads as one decal stamped twice.
+      vec2 lp = vec2(-0.34, 0.36) + (hash21(vSeed * 91.0) - 0.5) * 0.2;
+      float bounce = smoothstep(0.52, 0.12, length(c - vec2(0.22, -0.40))) * 0.26 * outer;
+      // Only the key is white — the bounce carries the colour of what it came off.
+      hilite = smoothstep(0.17, 0.02, length(c - lp)) * (1.0 - pop) * 0.9 * outer;
+
+      return clamp(rim + belly + bounce + hilite, 0.0, 1.0);
     #endif
   }
 
   void main() {
     if (vT < 0.0 || vT > 1.0) discard;
 
-    float mask = shapeMask(vUv);
+    float hilite = 0.0;
+    float mask = shapeMask(vUv, hilite);
     if (mask <= 0.004) discard;
 
     // Alpha over lifetime.
@@ -555,6 +586,10 @@ const PARTICLE_FRAGMENT = /* glsl */ `
     if (alpha < 0.004) discard;
 
     vec3 color = gradient4(uColor0, uColor1, uColor2, uColor3, vT) * vTint;
+
+    // The catchlight is white, not a brighter stop on the gradient — a specular
+    // reflection carries the colour of the light, not of the thing reflecting it.
+    color = mix(color, vec3(1.0), clamp(hilite, 0.0, 1.0));
 
     #ifdef USE_LIT
       // Cheap wrapped diffuse so opaque debris does not read as flat silhouettes.
