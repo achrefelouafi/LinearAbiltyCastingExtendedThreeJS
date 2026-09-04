@@ -7,6 +7,9 @@ import { GlacierAbility } from './GlacierAbility.js';
 import { WardAbility } from './WardAbility.js';
 import { AcidAbility } from './AcidAbility.js';
 import { ArborBloomAbility } from './ArborBloomAbility.js';
+import { CyberSerpentAbility } from './CyberSerpentAbility.js';
+import { VenomSurgeAbility } from './VenomSurgeAbility.js';
+import { MonolithRiftAbility } from './MonolithRiftAbility.js';
 import { ELEMENTS } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
@@ -20,7 +23,10 @@ const ABILITY_TYPES = {
   glacier: GlacierAbility,
   ward: WardAbility,
   acid: AcidAbility,
-  growth: ArborBloomAbility
+  growth: ArborBloomAbility,
+  cyber: CyberSerpentAbility,
+  venom: VenomSurgeAbility,
+  quake: MonolithRiftAbility
 };
 
 const MAX_CONCURRENT = 4;

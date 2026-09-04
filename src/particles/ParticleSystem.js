@@ -25,7 +25,8 @@ export const ParticleShape = Object.freeze({
   LEAF: 3, // tapered leaf silhouette
   CHIP: 4, // angular rock fragment
   RING: 5, // thin expanding ring — shockwaves
-  BUBBLE: 6 // gas bubble — a film with a catchlight, that bursts rather than fades
+  BUBBLE: 6, // gas bubble — a film with a catchlight, that bursts rather than fades
+  DROPLET: 7 // a bead of liquid — hard edge, wet highlight, bright far limb
 });
 
 const FLOATS = {
@@ -541,7 +542,7 @@ const PARTICLE_FRAGMENT = /* glsl */ `
     #elif SHAPE == 5                     // RING
       return smoothstep(0.14, 0.0, abs(d - 0.82));
 
-    #else                                // BUBBLE
+    #elif SHAPE == 6                     // BUBBLE
       // A gas bubble, not a dot of light. Four things make it one: the film is
       // only visible where you look *through* it edge-on, so the silhouette is a
       // thin ring rather than a disc; a little of it still crosses the middle,
@@ -564,6 +565,31 @@ const PARTICLE_FRAGMENT = /* glsl */ `
       hilite = smoothstep(0.17, 0.02, length(c - lp)) * (1.0 - pop) * 0.9 * outer;
 
       return clamp(rim + belly + bounce + hilite, 0.0, 1.0);
+
+    #else                                // DROPLET
+      // A bead of liquid, which is the opposite of the bubble above: full
+      // through the middle, not hollow. Surface tension means it has no soft
+      // edge at all, so everything that reads as *wet* lives on that hard edge:
+      //
+      //  - a small, tight catchlight from the key, offset off centre;
+      //  - a dark limb where the surface curves away from the camera, which is
+      //    the only thing that makes a flat quad read as a sphere;
+      //  - a bright band on the *far* side, where light entering the back of
+      //    the bead is refracted around and comes back out at you. That band is
+      //    the whole trick — it is why a droplet looks full of liquid and a
+      //    shaded circle looks like a ball bearing.
+      float body = smoothstep(1.0, 0.9, d);
+
+      // Offset per particle, or a handful of beads read as one stamp repeated.
+      vec2 lp = vec2(-0.34, 0.36) + (hash21(vSeed * 71.0) - 0.5) * 0.16;
+      hilite = smoothstep(0.26, 0.03, length(c - lp)) * body;
+
+      float limb = smoothstep(0.45, 0.95, d) * 0.5;
+      // Antipodal to the key: the far side of the bead, lit through it.
+      float back = smoothstep(0.62, 1.0, d) *
+                   smoothstep(-0.2, 0.9, dot(normalize(c + 1e-5), normalize(-lp)));
+
+      return clamp(body * (1.0 - limb) + hilite * 0.9 + back * body * 0.55, 0.0, 1.0);
     #endif
   }
 

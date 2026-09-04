@@ -11,6 +11,7 @@ import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
 
 import { AssetLoader } from '../loaders/AssetLoader.js';
+import { buildSerpentGeometry } from '../assets/SerpentGeometry.js';
 import { CharacterController } from '../animation/CharacterController.js';
 import { DummyField } from '../combat/DummyField.js';
 
@@ -34,6 +35,7 @@ import { Editor } from '../ui/Editor.js';
 import { settings, ELEMENTS } from '../config/settings.js';
 
 const HDR_URL = './hdri/spruit_sunrise.hdr';
+const SERPENT_URL = './models/snake.glb';
 
 /**
  * Application root: owns every subsystem and the frame loop.
@@ -94,6 +96,15 @@ export class App {
     this.dummies = new DummyField(this.environment);
     this.scene.add(this.dummies.group);
 
+    /**
+     * Geometry that had to be loaded rather than generated, keyed by name.
+     *
+     * Handed to the abilities by reference and filled in by `load()`: the pools
+     * build their instances lazily, on the first cast of an ability, which is
+     * long after the assets have landed.
+     */
+    this.models = {};
+
     this.abilities = new AbilityManager({
       scene: this.scene,
       camera: this.camera,
@@ -105,7 +116,8 @@ export class App {
       bursts: this.bursts,
       shake: this.shake,
       flash: this.flash,
-      dummies: this.dummies
+      dummies: this.dummies,
+      models: this.models
     });
 
     /* ---- character ---- */
@@ -264,6 +276,20 @@ export class App {
 
     this.loading.setProgress(0.72, 'Loading targets…');
     await this.dummies.load(assets);
+
+    this.loading.setProgress(0.8, 'Compiling the construct…');
+    const serpent = await assets.loadGLTF(SERPENT_URL);
+    this.models.serpent = buildSerpentGeometry(serpent.scene, { ghosts: 8 });
+    // The file's own material and its megabyte of base colour are dead weight:
+    // the Cyber Serpent writes every one of its pixels procedurally.
+    serpent.scene.traverse((node) => {
+      if (!node.isMesh) return;
+      node.geometry.dispose();
+      for (const material of [].concat(node.material)) {
+        material.map?.dispose();
+        material.dispose();
+      }
+    });
 
     this.loading.setProgress(0.85, 'Compiling shaders…');
     // Compile everything up front so the first cast never stutters.

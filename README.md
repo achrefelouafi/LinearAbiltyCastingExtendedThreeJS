@@ -2,7 +2,7 @@
 
 A skillshot VFX sandbox built with **Three.js**, **Vite** and hand-written **GLSL**.
 
-Nine abilities and two ways to aim them. Four are **line casts**: press the key to arm, a
+Twelve abilities and two ways to aim them. Seven are **line casts**: press the key to arm, a
 League-of-Legends style arrow appears on the ground and swings with the mouse, click to fire. The
 other five are **far casts**: the arrow is replaced by a circle with a deliberately thick boundary
 that follows the cursor and answers the only question a ground-targeted AoE has to answer before you
@@ -50,6 +50,31 @@ opens, whorl by whorl, over a core that is visibly winding up. Then it goes to w
 cast in the sandbox that **picks its own targets**: it marks the nearest body still standing, charges
 on it, and fires a lance of green light — and what the lance goes through comes apart at the waist.
 
+**J — Crystallized Venom Surge.** A line cast built to a five-panel VFX breakdown sheet, and
+organised so you can take the frame apart the same way. A seam of amethyst tears along the line and
+opens into a **starburst** at the far end — three populations doing three jobs, long spears defining
+the silhouette, blades filling the body, chunky shards skirting the base — every gem purple stone
+with green **venom** sealed in its flaws. Heavy **gas** rolls off the bases rather than lifting,
+**droplets** are flung out of the break and arc back down, and keep dripping off the tips while it
+stands. The floor is cut into slabs by a **Voronoi** and heaved, with light coming up out of the
+seams. And a **glow** kernel sits at the heart of it, which the crystals read as a real light source
+— the gems nearest it are lit from that direction, so the two layers are one object rather than a
+lamp parked in a pile of rocks.
+
+**M — Brutalist Earth Blast.** The one cast in the sandbox with nothing emissive in it. A rupture
+front tears down the line, shearing slabs of the floor up behind it, and at the far end the ground
+fails outright: a cluster of **monoliths** punches up out of a crater, canted whichever way its own
+fracture allowed rather than fanned out like a starburst. The stone is a real `MeshStandardMaterial`
+wearing a **triplanar projection of a photographic rock scan** — sun, shadows, IBL, occlusion — with
+the fresh fracture faces unweathered, the roots damp from under the floor, and cement dust settling
+pale on every up-facing surface over the seconds that follow. A **dust shockwave** rolls outward
+along the ground as a genuine torus of lit, non-additive smoke, hollow in the middle, with the plume
+climbing behind it. **Shrapnel** is real instanced rock on a ballistic arc: it tumbles, bounces,
+loses energy to friction and is left lying where it lands. The floor keeps a heaved **Voronoi
+crater** and a network of **dark fissures** racing out past it. And the air itself is displaced — a
+radial pressure ring and a column of churn written into the refraction buffer. Built to the
+five-panel breakdown sheet, and filed in the editor the same way.
+
 Everything you can see is generated. There are no textures, no sprite sheets and no meshes on
 disk except the character: the crystals are procedural geometry, the bolt is a strip of ribbon
 placed entirely by a vertex shader, the meteor is an icosphere cratered and sliced by fracture
@@ -58,7 +83,11 @@ whole cage is that same ribbon strip threaded along four different parametric pa
 tendrils, its foliage and every petal on its bloom are grids of parameter space placed entirely in a
 vertex shader, the arrow, the targeting circle, the nature sigil with its generated runes, the rime,
 the burns and the molten cracks are signed-distance and noise shaders, and the mist, sparks, chips,
-leaves and glitter are GPU particles.
+leaves and glitter are GPU particles. The **Brutalist Earth Blast is the deliberate exception**: its
+slabs, shrapnel and crater are procedural geometry like everything else, but they are *shaded* with
+the same CC0 ambientCG **Rock030** scan the floor is dressed with, projected triplanar in world
+metres. Procedural noise gets you stone that looks like stone; it does not get you stone that looks
+photographed, and that ability's whole read depends on the second one.
 
 **Every parameter is a live slider** — 1,983 of them — and they stay live while the simulation is
 paused. That is the point of the project: freeze a frame mid-eruption, mid-strike or mid-burn with
@@ -135,6 +164,10 @@ shown as a visible sky. The stage keeps its flat dark backdrop.
 | **B** (or **7**) | Arm Volcanic Horror Ward — a far cast |
 | **Z** (or **8**) | Arm Caustic Bloom — a far cast, and a poison acid aura |
 | **N** (or **9**) | Arm the Arborist's Growth Chrono-Summon — a far cast that picks its own targets |
+| **K** (or **0**) | Arm the Cyber Serpent |
+| **J** | Arm the Crystallized Venom Surge |
+| **M** | Arm the Brutalist Earth Blast |
+| **M** | Arm the Monolith Rift |
 | **Move the mouse** | Swing the aim arrow, or move the far-cast circle |
 | **Left click** | Cast along the arrow, or drop the circle where it is |
 | **Esc** / **right click** | Cancel an armed cast |
@@ -625,7 +658,9 @@ target, blurred twice and projected onto the ground.
 ## Editor and presets
 
 Press **G** for the panel. Folders: Presets, Global, Aim indicator, Far-cast circle, Frost Lance,
-Storm Lance, Cinder Fall, Nova Beam, Voltaic Snare, Environment, Post processing, Camera,
+Storm Lance, Cinder Fall, Nova Beam, Voltaic Snare, Glacial Crown, Volcanic Ward, Caustic Bloom,
+Arborist's Growth, Cyber Serpent, Crystallized Venom Surge, Brutalist Earth Blast,
+Environment, Post processing, Camera,
 Character. Every folder starts collapsed — there are enough controls here that one open section
 pushes the rest off the screen.
 
@@ -650,6 +685,22 @@ pushes the rest off the screen.
   column, the tendrils, the rim arcs, the shared filament shape and flicker, the ribbon and its
   colour, the field on the floor, the burns, sparks/updraft/smoke/debris, throw/snap/hold, and the
   dynamic light.
+- **Crystallized Venom Surge** (194 controls, 36 of them colours) — filed as the five panels of
+  its breakdown sheet rather than by system, so judging one layer is a matter of opening one
+  folder: *1 Crystals* (the seam, the starburst, one gem, the eruption, the amethyst), *2 Gas*,
+  *3 Droplets* (with the airborne glitter under it), *4 Cracks* (the plate, and the marks laid
+  along the line), *5 Glow* (the kernel, and the halo under it), then the strike and the light.
+  The four `slab*` controls marked *re-cuts* rebuild the Voronoi; every other control on the
+  plate reshapes one that is already lying on the floor.
+- **Brutalist Earth Blast** (195 controls, 25 of them colours — one per value in its settings
+  block, with nothing hidden) — filed as the five panels of its breakdown sheet: *1 Monoliths*
+  (the rift, the cluster, one slab, the eruption, the stone surface), *2 Cement dust* (with the
+  rolling ring under it), *3 Geometric shrapnel* (with grit and suspended powder), *4 Fissure
+  scars* (the crater, the cracks, the marks along the line), *5 Kinetic air*, then the strike and
+  the light. The seven shape controls under *One slab* re-cut the geometry; everything else
+  reshapes stone that is already standing. Each panel can be taken to zero on its own to judge the
+  others — `density` empties the stone, `dustOpacity` clears the air, `shrapnelCount` stops the
+  debris, `warpStrength` switches off the refraction.
 - **Presets** save to `localStorage`, and can be duplicated, deleted, exported to JSON, imported
   from JSON, or reset to the shipped defaults.
 

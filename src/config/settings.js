@@ -3028,6 +3028,890 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
+  /* CYBER SERPENT — a holographic construct thrown down the line        */
+  /* ------------------------------------------------------------------ */
+  /**
+   * The one ability built on a loaded mesh (`public/models/snake.glb`), and the
+   * only one whose asset contributes nothing but a silhouette: the file's
+   * material and texture are dropped at load time and every pixel is written by
+   * `materials/CyberSerpentMaterial.js`.
+   *
+   * Five layers, and the block below is grouped in the order they are drawn:
+   *
+   *   1. the construct        → `The wireframe`   (WIRE pass)
+   *   2. the energy inside it → `The energy fill` (FILL + AURA passes)
+   *   3. the ribbons          → `The ribbons`     (one instanced draw)
+   *   4. the wake             → `The wake`        (lagged copies + vapour)
+   *   5. the rune board       → `The rune board`  (a routed circuit on the floor)
+   *
+   * Two conventions worth knowing before dragging anything:
+   *
+   *  - anything named for the **body** is in *canonical* units, where 1 is the
+   *    whole length of the serpent. `sway`, `fillInflate`, `ghostLag` and
+   *    `shatterSpread` all scale with `bodyLength` for free, which is why
+   *    lengthening the animal does not also have to re-tune its swim.
+   *  - anything named for the **board** or the **ribbons** is in metres, because
+   *    those are laid out against the cast, not against the animal.
+   */
+  cyber: {
+    /* --- the cast --- */
+    range: 26.0, // maximum cast distance, metres
+    minRange: 3.5, // closer than this and the cast is refused
+    speed: 22.0, // how fast the construct flies, metres/second
+    shatterTime: 0.75, // seconds it takes to come apart on impact
+    fadeTime: 0.85, // seconds the debris takes to go out
+    cooldown: 1.5,
+    castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
+
+    /* --- the flight --- */
+    bodyLength: 5.0, // nose to tail tip, metres
+    launchHeight: 1.35, // where it leaves the caster's hand, metres
+    flightHeight: 1.85, // its cruise height
+    riseDistance: 4.0, // metres it takes to settle onto that height
+    bob: 0.12, // how far it rides up and down, metres
+    bobSpeed: 0.9, // times/second
+    formTime: 0.22, // seconds the body takes to assemble behind the nose
+
+    /* --- the swim --- */
+    // A lateral wave with a slower vertical one under it. The amplitude grows
+    // from `swayRoot` at the nose to full at the tail, which is what makes the
+    // head lead and the body follow instead of the whole animal sliding.
+    sway: 0.14, // × bodyLength, the tail's throw
+    swayWaves: 1.6, // wavelengths along the body
+    swaySpeed: 1.6, // strokes/second
+    swayRoot: 0.22, // how much of that amplitude the nose gets
+    swayPitch: 0.45, // the vertical wave, × the lateral one
+    swayPitchWaves: 0.9,
+    bank: 0.35, // radians it leans into each stroke
+
+    /* --- layer 1: the wireframe --- */
+    // Screen-space width, so the mesh reads at the same weight at the caster's
+    // feet and twenty-five metres downrange.
+    wireWidth: 0.75, // pixels
+    // Below this many pixels of triangle inradius the mesh stops drawing its own
+    // wireframe: the serpent's jaws carry two thirds of its triangles, and left
+    // alone they fill in solid white. See the WIRE branch of the fragment stage.
+    wireFloor: 3.2,
+    // ... and what that fade takes out comes back as an even glow over the
+    // facet, so the animal is a mesh up close and a shape at distance without
+    // dimming in between.
+    wireSolid: 0.3,
+    wireGain: 1.1,
+    wireHalo: 3.0, // pixels of soft bleed either side of an edge
+    wireHaloGain: 0.25,
+    facetFill: 0.02, // how solid the interior is — keep it near nothing
+    facetRim: 0.8, // the silhouette term that makes the volume legible
+    facetPower: 3.2,
+    scanDepth: 0.38, // holographic banding running down the body
+    scanFreq: 34.0, // bands over the length
+    scanSpeed: 2.6,
+    pulse: 1.0, // charge running head-ward along the mesh
+    pulseFreq: 2.6,
+    pulseSpeed: 1.2,
+    pulseSharp: 6.0,
+    glitch: 0.025, // fraction of facets misfiring at any moment
+    glitchRate: 16.0, // times/second the dice are re-rolled
+    glitchGain: 2.0,
+    headHeat: 0.6, // white at the nose, where it meets the air
+    headLength: 0.14, // how far back that reaches, fraction of the body
+    formEdge: 0.07, // width of the hot edge on the assembling front
+    formRough: 0.06, // how ragged that front is
+    formGlow: 1.6,
+    wireIntensity: 0.95,
+    wireOpacity: 0.9,
+    softFade: 0.35, // metres of soft fade where the body meets geometry
+    colorWire: '#35d5ff',
+    colorHot: '#ffffff',
+    colorFacet: '#0b3f7a',
+
+    /* --- layer 2: the energy inside it --- */
+    fillInflate: 0.006, // × bodyLength, off the surface
+    fillCore: 4.0, // how hard it weights toward the thick part of the volume
+    cloudDepth: 0.75, // how much the cloud noise modulates it
+    cloudScale: 6.5,
+    cloudFlow: 1.5, // how fast it streams tailward
+    fillIntensity: 0.75,
+    fillOpacity: 0.34,
+    colorFillCore: '#7fd4ff',
+    colorFillEdge: '#1050e0',
+    // The outer shell: wide, faint, rim only. Push it up and it fogs the wire,
+    // which is the read the whole ability rests on.
+    auraInflate: 0.03,
+    auraRim: 3.6,
+    auraBreak: 0.45, // noise break-up, or it reads as a second skin
+    auraIntensity: 0.65,
+    auraOpacity: 0.24,
+    colorAura: '#1a7bff',
+
+    /* --- layer 3: the ribbons --- */
+    trails: 5, // strands (capped at 8)
+    trailLength: 9.0, // metres of path they reach back over
+    trailTurns: 1.8, // turns each makes over that span
+    trailSpin: 0.35, // turns/second they roll on top of that
+    trailRadius: 0.85, // how far off the axis they ride, metres
+    trailSwell: 0.5, // where along the span they are fattest
+    trailWidth: 0.06, // half-width at the head, metres
+    trailWidthTip: 0.5, // that width at the tail, as a multiple
+    trailSharp: 2.8, // falloff across the ribbon
+    trailCore: 20.0, // the hard thread down the middle of it
+    trailPulse: 1.3, // charge running up it
+    trailPulseFreq: 2.2,
+    trailPulseSpeed: 1.3,
+    trailFlicker: 0.3, // it is data, not a wire — let it stutter
+    trailFlickerScale: 6.0,
+    trailFlickerSpeed: 2.2,
+    trailWander: 0.22, // metres the helix drifts off axis
+    trailWanderScale: 2.0,
+    trailWanderSpeed: 0.8,
+    trailIntensity: 1.35,
+    trailOpacity: 0.68,
+    trailSoftFade: 0.4,
+    colorTrailCore: '#ffffff',
+    colorTrail: '#4fe0ff',
+    colorTrailTail: '#0f47d8',
+
+    /* --- layer 4: the wake --- */
+    // Copies of the body, each one further back down the line *and* further
+    // back in time, so a ghost holds the pose the serpent had when it was there.
+    ghosts: 5, // copies (capped at 8)
+    ghostLag: 0.16, // × bodyLength between them
+    ghostTimeLag: 0.035, // seconds between them
+    ghostInflate: 0.012, // × bodyLength each one swells
+    ghostFade: 0.6, // how much dimmer each is than the one in front
+    ghostErode: 0.85, // how hard the noise eats them into vapour
+    ghostErodeScale: 1.3,
+    ghostIntensity: 0.85,
+    ghostOpacity: 0.36,
+    colorGhost: '#3fb8ff',
+
+    /* --- layer 5: the rune board --- */
+    // A routed circuit, not a pattern: cells agree with their neighbours about
+    // the edges they share, so traces run for metres, fork, and dead-end in
+    // vias. See `materials/CircuitFieldMaterial.js`.
+    runeWidth: 2.6, // half-width of the board, metres
+    runeOverrun: 2.0, // metres it runs past the impact point
+    runeHeight: 0.02, // hover above the floor, metres
+    runeCell: 0.8, // routing grid, metres
+    runeDensity: 0.68, // fraction of cell edges carrying a trace
+    runeJitter: 0.32, // how far nodes and gates wander off the grid
+    runeTrace: 0.02, // trace width, metres
+    runePad: 0.13, // pad radius on a junction, metres
+    runeVia: 0.05, // via radius on a dead end, metres
+    runeLead: 1.8, // metres of pre-charge ahead of the nose
+    runeDecay: 0.16, // 1/metres the glow dies behind it
+    runeBase: 0.06, // how visible an unlit trace is
+    runeGlow: 1.2,
+    runeBlip: 2.0, // data running the traces toward the nose
+    runeBlipFreq: 0.45, // blips per metre
+    runeBlipSpeed: 3.2,
+    runeUnder: 0.35, // the pool of light the body drags over the floor
+    runeUnderLong: 3.6, // metres it trails behind
+    runeUnderWide: 1.2,
+    runeBlastSpeed: 14.0, // metres/second the impact ring crosses the board
+    runeBlastLife: 0.9, // seconds it lasts
+    runeBlastWidth: 0.4, // metres
+    runeBlastGain: 2.2,
+    runeIntensity: 1.4,
+    runeOpacity: 0.8,
+    colorRune: '#0d3f66',
+    colorRuneLive: '#5fe6ff',
+    colorRuneHot: '#e8feff',
+    colorRuneUnder: '#1f6ad4',
+
+    /* --- the air it pushes (LAYER.DISTORTION) --- */
+    warpInflate: 0.05,
+    warpStrength: 0.9,
+    warpScale: 1.1,
+    warpSpeed: 1.3,
+
+    /* --- data motes --- */
+    moteRate: 90.0,
+    moteSize: 0.05,
+    moteLifetime: 0.8,
+    moteSpeed: 1.1,
+    moteRise: 0.4,
+    moteDrift: 0.9, // how hard they are left behind rather than carried
+    moteTurbulence: 0.6,
+    moteGlow: 1.4,
+    colorMoteA: '#ffffff',
+    colorMoteB: '#8ef2ff',
+    colorMoteC: '#2a86ff',
+    colorMoteD: '#06214d',
+
+    /* --- sparks --- */
+    sparkRate: 55.0,
+    sparkSize: 0.07,
+    sparkLifetime: 0.55,
+    sparkSpeed: 4.5,
+    sparkGravity: -3.0,
+    sparkStretch: 0.35,
+    sparkGlow: 1.6,
+    groundSparkRate: 3.0, // bursts per metre of travel
+    groundSparks: 5.0, // sparks in each
+    colorSparkA: '#ffffff',
+    colorSparkB: '#b6f6ff',
+    colorSparkC: '#3aa0ff',
+    colorSparkD: '#08265c',
+
+    /* --- the vapour left in the corridor --- */
+    wakeRate: 40.0,
+    wakeSize: 0.38,
+    wakeLifetime: 1.2,
+    wakeSpeed: 1.0,
+    wakeRise: 0.35,
+    wakeOpacity: 0.12,
+    wakeTurbulence: 0.6,
+    colorWakeA: '#9fd6ff',
+    colorWakeB: '#5f9fdd',
+    colorWakeC: '#2a4f80',
+    colorWakeD: '#101c30',
+
+    /* --- the strike --- */
+    shatterSpread: 0.4, // × bodyLength the fragments are thrown
+    shatterSpin: 1.6, // turns each one takes on the way out
+    shatterStagger: 0.5, // how much later the last facet lets go than the first
+    burstSize: 1.35,
+    burstIntensity: 1.0,
+    burstSparks: 110.0,
+    burstMotes: 90.0,
+    shockRadius: 4.2,
+    arcRadius: 3.4,
+    arcIntensity: 1.1,
+    arcLife: 1.1,
+    impactFlash: 0.35,
+    impactShake: 0.32,
+    shakeDuration: 0.45,
+    rumble: 0.03,
+    burnShake: 0.05,
+    castBurst: 0.85,
+    castBurstGlow: 1.4,
+    castSparks: 45.0,
+    castFlash: 0.18,
+    colorBurstA: '#e8feff',
+    colorBurstB: '#5fd6ff',
+    colorBurstC: '#0f45c8',
+    colorShockA: '#cdf6ff',
+    colorShockB: '#1e63ff',
+    colorArcA: '#0d2b52',
+    colorArcB: '#4fd8ff',
+    colorCastFlash: '#9fe6ff',
+    colorFlash: '#7fd9ff',
+
+    /* --- the light it carries --- */
+    lightColor: '#4fd0ff',
+    lightIntensity: 42.0,
+    lightRadius: 12.0,
+    lightPulse: 0.3, // it is computed, not burning — the light steps
+    lightPulseSpeed: 12.0 // steps/second
+  },
+
+  /* ================================================================== */
+  /* VENOM — Crystallized Venom Surge                                    */
+  /* ================================================================== */
+  /**
+   * A seam of amethyst tearing along the aimed line and opening into a
+   * starburst at the far end. Reference for the look: the five-panel VFX
+   * breakdown sheet — crystals, gas, droplets, cracks, glow — and this block is
+   * grouped in exactly those five sections so that a panel of the sheet and a
+   * folder of the editor are the same thing.
+   *
+   * Two units are in play, and mixing them up is the only way to get lost here:
+   *
+   *  - anything about the **cast** is in metres, because it is laid out against
+   *    the aim indicator — `width`, `height`, `burstRadius`, `plateRadius`;
+   *  - anything about the **plate** is a fraction of its own radius, because the
+   *    Voronoi is cut in unit space and scaled — `slabGap`, `slabHeave`,
+   *    `slabDepth`. That is what lets a two-metre crater and an eight-metre one
+   *    break the same way instead of one of them looking like gravel.
+   *
+   * The palette is the load-bearing decision and it is worth stating plainly:
+   * the stone is **purple** and the light inside it is **green**. Every colour
+   * below is chosen against that split, and swapping the two — a green gem with
+   * a violet glow — reads as a lamp behind glass instead of poison sealed in a
+   * crystal.
+   */
+  venom: {
+    /* --- the cast itself --- */
+    range: 16.0, // maximum cast distance, metres
+    minRange: 2.5, // closer than this and the cast is refused
+    speed: 23.0, // how fast the seam travels, metres/second
+    lifetime: 3.9, // seconds the cluster stands before it comes apart
+    cooldown: 0.5, // seconds before the ability can be armed again
+    castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
+
+    /* ================================================================ */
+    /* 1 · CRYSTALS                                                      */
+    /* ================================================================ */
+
+    /* --- the seam running out from the caster --- */
+    widthNear: 0.42, // half-width of the band at the caster, metres
+    width: 1.9, // half-width at the far end, metres
+    widthCurve: 0.8, // <1 flares early, >1 stays narrow then opens out
+    gemCount: 210, // instances spent on one cast (capped at 336)
+    density: 1.0, // multiplier on that count
+    burstShare: 0.42, // fraction of them held back for the starburst
+    clumping: 1.5, // >1 pulls the seam toward the centre line
+    scatter: 0.5, // extra lateral jitter, fraction of the local half-width
+    frontBias: 0.82, // <1 crowds the seam toward the impact point
+    heightNear: 0.45, // gem height at the caster, metres
+    height: 2.4, // gem height just short of the impact, metres
+    heightCurve: 1.6, // how late the ramp climbs
+    peak: 1.35, // extra height multiplier as it reaches the impact
+    peakWidth: 0.3, // how much of the line that swell covers, 0..1
+    rubble: 0.38, // fraction of the seam demoted to ankle-height shards
+    lean: 0.38, // radians the seam leans away from the caster
+
+    /* --- the starburst at the far end --- */
+    burstRadius: 2.3, // how wide the cluster stands, metres
+    burstHeight: 2.5, // height of a gem at the centre of it, metres
+    crown: 0.62, // how much shorter the skirt is than the middle, 0..1
+    burstLean: 1.05, // radians a rim gem leans outward
+    burstLeanCurve: 0.8, // <1 leans the inner gems out early too
+    spearShare: 0.16, // fraction that are long blades defining the silhouette
+    spearScale: 1.3, // how much taller than a body gem those are
+    spearSlim: 0.78, // and how much thinner — slenderness is what says amethyst
+    shardShare: 0.3, // fraction that are the chunky skirt around the base
+    shardScale: 0.34,
+    burstStagger: 0.16, // seconds the rim lags the middle, × its radius
+
+    /* --- an individual gem --- */
+    radius: 0.42, // base radius, metres
+    radiusJitter: 0.85,
+    heightJitter: 0.62,
+    leanJitter: 0.85,
+    taper: 0.18, // tip radius as a fraction of the base — low is sharp
+    facets: 6, // sides of the prism (5–8 read best)
+    gemRough: 0.16, // how far the facets are pushed off a clean prism
+    bend: 0.3, // sideways curve from base to tip
+    twist: 1.0, // random yaw, 0..1 of a full turn
+
+    /* --- the eruption --- */
+    riseTime: 0.16, // seconds from buried to full height
+    riseOvershoot: 0.3, // how far past full height the punch carries
+    riseStagger: 0.08, // seconds of random delay between neighbours
+    settle: 0.5, // seconds the overshoot takes to damp out
+    shatterDelay: 0.55, // seconds after `lifetime` before they let go
+    sinkTime: 1.0, // seconds to withdraw into the floor
+
+    /* --- the amethyst itself --- */
+    colorDeep: '#3c1a6e', // what thick stone accumulates toward
+    colorGem: '#7b3fd4', // body
+    colorGemRim: '#c9a3ff', // fresnel edge
+    colorGemTip: '#ded2f8', // the milky, frosted last third
+    colorVenom: '#9dff3a', // the fluid sealed inside it
+    gemOpacity: 0.97,
+    gemRoughness: 0.12,
+    depthTint: 1.1, // how fast the deep tint builds with thickness
+    fresnel: 2.0,
+    fresnelPower: 2.5,
+    dispersion: 0.6, // how far the rim splits into colour
+    facetSharp: 0.72, // crispness of the internal facet shading
+    cleave: 0.35, // internal fracture planes
+    cleaveScale: 5.0, // planes per metre
+    venomGlow: 1.15, // how hot the trapped fluid burns
+    venomScale: 3.8, // features per metre
+    venomFlow: 0.5, // how fast it drifts up the crystal
+    venomBase: 0.25, // how much survives at the tip — venom has weight
+    venomSharp: 5.5, // 1 = a wash, high = distinct threads
+    tipFrost: 0.5, // the milky band near the point
+    tipStart: 0.55, // where up the crystal it begins, 0..1
+    // Named `glint*` rather than `mote*` on purpose: these are the pinpoint
+    // highlights on the crystal *surface*; the `mote*` family further down
+    // drives the airborne glitter particles. Two different effects.
+    glint: 0.6,
+    glintScale: 30.0,
+    glintSpeed: 0.6,
+    gemGlow: 0.68, // overall emissive gain
+    edgeGlow: 0.5, // brightness of the silhouette rim
+    birthGlow: 0.9, // extra glow on a gem that has just erupted
+    birthFade: 0.22, // seconds that birth flash lasts
+    envIntensity: 1.0, // how much of the HDR probe the facets catch
+
+    /* ================================================================ */
+    /* 2 · GAS                                                           */
+    /* ================================================================ */
+    /**
+     * Sampled over the particle's own lifetime: `A` the instant it is born, `D`
+     * as it dies. Spelled out rather than derived from the crystal palette so
+     * the cloud can be pushed green or grey without touching the stone — and it
+     * wants to be *both*, acid at the source and dusty violet by the time it has
+     * drifted, which is the whole reason there are four stops.
+     */
+    gasRate: 240, // particles/second along the front
+    gasSize: 1.15,
+    gasSpread: 3.2, // how much bigger a puff gets over its life
+    gasSpeed: 1.1,
+    gasLifetime: 2.4,
+    gasOpacity: 0.08,
+    gasRise: 0.22, // metres/second — heavy, so it rolls rather than lifts
+    gasTurbulence: 0.5,
+    standingGas: 0.4, // × `gasRate` once the cluster is up
+    breachGasChance: 0.3, // odds a single gem puffs as it breaks through
+    burstGas: 150, // extra puffs thrown at the impact
+    colorGasA: '#a8c47a', // acid, at the source
+    colorGasB: '#879a80',
+    colorGasC: '#7b7590', // going dusty as it drifts
+    colorGasD: '#1e1729',
+
+    /* ================================================================ */
+    /* 3 · DROPLETS                                                      */
+    /* ================================================================ */
+    dropSize: 0.075,
+    dropSpeed: 6.2,
+    dropLifetime: 1.7,
+    dropGravity: -13.5, // they arc, which is the only thing that says liquid
+    dropGlow: 1.15,
+    breachDrops: 3, // flicked by each gem as it breaks the surface
+    burstDrops: 130, // the fountain at the impact
+    shatterDrops: 4, // thrown by each gem as it goes
+    dripRate: 7, // beads/second running off the tips while it stands
+    colorDropA: '#ecffb0',
+    colorDropB: '#a4ff2e',
+    colorDropC: '#5fb81a',
+    colorDropD: '#1d3a0c',
+
+    /* --- the airborne glitter that sells the facets --- */
+    moteRate: 120,
+    moteSize: 0.05,
+    moteSpeed: 3.0,
+    moteLifetime: 2.4,
+    moteRise: 1.4, // upward drift, metres/second
+    moteTurbulence: 0.6,
+    moteGlow: 1.2,
+    burstMotes: 170,
+    shatterMotes: 3,
+    colorMoteA: '#f4ffd9',
+    colorMoteB: '#a8ff3c',
+    colorMoteC: '#c39bff',
+    colorMoteD: '#2a1046',
+
+    /* ================================================================ */
+    /* 4 · CRACKS                                                        */
+    /* ================================================================ */
+    /**
+     * `slab*` values are fractions of the plate's own radius — see the note at
+     * the top of this block. `slabCount`, `slabDepth`, `slabBias` and
+     * `slabRagged` re-cut the Voronoi when they move; everything else is a
+     * uniform and reshapes a plate that is already lying on the floor.
+     */
+    plateRadius: 3.4, // how far the break reaches, metres
+    slabCount: 74, // pieces the plate is cut into
+    slabDepth: 0.085, // slab thickness, × the radius
+    slabBias: 0.44, // <0.5 makes the middle pieces finer
+    slabRagged: 0.3, // how far the outline bites in, so it is not a disc
+    slabGap: 0.055, // how far each piece shrinks from its neighbours
+    slabHeave: 0.075, // how far the middle is pushed up, × the radius
+    slabTilt: 0.42, // radians a piece cants over
+    slabGrowth: 9.0, // how fast the fracture races outward, metres/second
+    seamGlow: 0.85, // light coming up out of the break
+    seamReach: 0.045, // how far it spills over the lip onto the top face
+    stoneGrain: 0.7,
+    stoneGrainScale: 7.0, // grain features per metre
+    stoneSpeck: 0.3,
+    stoneLip: 0.45, // how much lighter a fresh broken face is
+    colorStone: '#8d8a86',
+    colorStoneDark: '#3a3733',
+    colorSeam: '#7ad42a', // the light in the crack
+    colorStain: '#54761f', // venom that has run down into it
+
+    /* --- the marks laid along the line as the seam passes --- */
+    crackRate: 1.8, // marks per metre of front travel
+    crackSpread: 0.85, // mark radius, × the local half-width
+    crackLife: 4.0, // seconds a mark lingers
+    crackWidth: 0.42, // how wide the branches are drawn
+    crackIntensity: 0.3,
+    colorCrackA: '#2b2620', // the burnt stone
+    // Deliberately muted: the CRACK decal runs this stop at 1.8× while the glow
+    // is fresh, and a hot value here throws a bright green mark across the floor
+    // that reads as a sticker rather than as light in a crack.
+    colorCrackB: '#27470f',
+
+    /* ================================================================ */
+    /* 5 · GLOW                                                          */
+    /* ================================================================ */
+    /**
+     * Two shells: a tight, near-white `core*` kernel and a wide, soft `halo*`
+     * that is the violet bloom separating the cluster from the floor behind it.
+     * Both are drawn back-face-first so the gems standing in the light occlude
+     * it and read as being *inside* it.
+     */
+    coreHeight: 1.15, // how far off the floor the light sits, metres
+    coreSize: 0.8, // kernel radius, metres
+    coreSwell: 0.35, // how small it starts, × its size
+    coreFalloff: 2.4, // >1 concentrates it in the middle
+    coreIntensity: 2.4,
+    coreOpacity: 0.62,
+    coreBillow: 0.2, // surface displacement
+    coreBillowScale: 2.6,
+    coreBreak: 0.45, // how much noise eats into it
+    coreBreakScale: 3.0,
+    coreBreakSpeed: 0.75,
+    coreFlow: 0.55, // how fast the billowing drifts
+    coreFlicker: 0.14,
+    coreFlickerSpeed: 6.5,
+    coreSoftFade: 0.55, // metres over which it fades against the gems
+    coreFlare: 0.45, // seconds the arrival overshoot takes to damp out
+    coreFlarePunch: 0.35, // how far past full brightness it goes
+    coreHold: 0.72, // what it settles back to while the cluster stands
+    coreBleed: 0.4, // how hard it lights the gems around it
+    coreBleedRadius: 3.0, // metres that light carries
+    colorCore: '#f6ffe8',
+    colorCoreMid: '#a6ff32',
+    colorCoreEdge: '#5fd11a',
+
+    haloScale: 2.4, // × the kernel radius
+    haloFalloff: 1.5,
+    haloIntensity: 0.32,
+    haloOpacity: 0.28,
+    haloBillow: 0.16,
+    haloBillowScale: 1.8,
+    haloBreak: 0.55,
+    colorHaloCore: '#c8ff7a',
+    colorHaloMid: '#7fdc4a',
+    colorHaloEdge: '#7b3fd4', // the violet the cloud is read against
+
+    /* --- dynamic light --- */
+    lightIntensity: 14,
+    lightRadius: 15,
+    lightWaver: 0.16, // chemical glow wavers; it does not glint
+    lightColor: '#9bff45',
+
+    /* --- the impact at the far end --- */
+    burstSize: 3.8, // the shell of gas pushed ahead of the surge
+    burstIntensity: 0.9,
+    shockRadius: 4.2,
+    impactShake: 0.72,
+    impactFlash: 0.11,
+    shakeDuration: 0.95,
+    rumble: 0.055, // continuous shake while the seam runs
+    colorBurstA: '#4e6b33',
+    colorBurstB: '#8fd44a',
+    colorBurstC: '#d8ffa0',
+    colorShockA: '#9dff3a',
+    colorShockB: '#d8ffb0',
+    colorFlash: '#d6ffa8' // the full-screen flash on impact
+  },
+
+  /* ------------------------------------------------------------------ */
+  /* QUAKE — the Brutalist Earth Blast                                   */
+  /* ------------------------------------------------------------------ */
+  /**
+   * The one ability in the sandbox with nothing emissive in it.
+   *
+   * Everything standing is a real `MeshStandardMaterial` wearing a triplanar
+   * projection of a photographic rock scan, lit by the stage's own sun and
+   * casting its own shadows, and the whole read is carried by silhouette, dust
+   * density and the fact that the floor visibly failed. There is therefore no
+   * `colorGlow`, no `seamGlow` and no core: if the lighting is wrong here the
+   * fix is in `environment`, not in a brightness slider.
+   *
+   * The five blocks below are the five panels of the reference breakdown, in
+   * order, and each one can be taken to zero on its own to judge the others:
+   * `density` empties the stone, `dustOpacity` clears the air, `shrapnelCount`
+   * stops the debris, `fissureLip` flattens the scars, `warpStrength` and
+   * `warpColumn` switch off the refraction.
+   */
+  quake: {
+    /* --- the cast itself --- */
+    range: 17.0, // maximum cast distance, metres
+    minRange: 3.0, // closer than this and the cast is refused
+    speed: 26.0, // how fast the rupture front travels, metres/second
+    lifetime: 5.0, // seconds the cluster stands before it goes back down
+    cooldown: 0.8, // seconds before the ability can be armed again
+    castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
+
+    /* ================================================================ */
+    /* 1 · MONOLITHIC RUPTURE SPIKES                                     */
+    /* ================================================================ */
+
+    /* --- the rift running out from the caster --- */
+    widthNear: 0.5, // half-width of the band at the caster, metres
+    width: 1.5, // half-width at the far end, metres
+    widthCurve: 0.85, // <1 flares early, >1 stays narrow then opens out
+    stoneCount: 96, // instances spent on one cast (capped at 280)
+    density: 1.0, // multiplier on that count
+    blastShare: 0.44, // fraction of them held back for the terminal cluster
+    clumping: 1.4, // >1 pulls the rift toward the centre line
+    scatter: 0.55, // extra lateral jitter, fraction of the local half-width
+    frontBias: 0.85, // <1 crowds the rift toward the impact point
+    heightNear: 0.45, // stone height at the caster, metres
+    height: 1.6, // stone height just short of the impact, metres
+    heightCurve: 1.5, // how late the ramp climbs
+    peak: 1.5, // extra height multiplier as it reaches the impact
+    peakWidth: 0.28, // how much of the line that swell covers, 0..1
+    rubble: 0.45, // fraction of the rift demoted to ankle-height blocks
+    lean: 0.42, // radians the rift shears back away from the front
+
+    /* --- the cluster at the far end --- */
+    blastRadius: 3.8, // how wide the cluster stands, metres
+    blastHeight: 3.0, // height of a body slab at its centre, metres
+    crown: 0.5, // how much shorter the skirt is than the middle, 0..1
+    blastLean: 0.42, // radians a rim stone cants over
+    blastLeanCurve: 0.9, // <1 cants the inner stones early too
+    // The control that keeps this from being a starburst. At 0 every stone tips
+    // straight away from the centre and the cluster opens like a hand — which
+    // is a crystal field. Ground that was driven upward tips whichever way its
+    // own fracture allowed, so the bearing is scattered off outward by this
+    // many radians and only the *bias* survives.
+    blastLeanScatter: 1.15,
+    blastStagger: 0.13, // seconds the rim lags the middle, × its radius
+    monolithShare: 0.15, // fraction that are the hero slabs
+    monolithScale: 1.8, // how much taller than a body slab those are
+    monolithGirth: 2.2, // and how much wider — mass is what says concrete
+    blockShare: 0.42, // fraction that are the chunky skirt around the base
+    blockScale: 0.4,
+
+    /* --- an individual stone --- */
+    radius: 0.8, // footprint radius, metres
+    radiusJitter: 0.55,
+    heightJitter: 0.55,
+    leanJitter: 0.85,
+    twist: 1.0, // random yaw, 0..1 of a full turn
+    // The seven below re-cut the slab geometry when they move; everything else
+    // in this block is a transform or a uniform and reshapes stone that is
+    // already standing. See `assets/MonolithGeometry.js`.
+    sides: 6, // vertices in the footprint (4-7 read best)
+    taper: 0.92, // top width as a fraction of the base
+    flatten: 0.68, // squash on one axis — low is a wall, 1 is a column
+    chip: 0.17, // how far the footprint wanders off a clean prism
+    shear: 0.2, // tilt of the top break plane — this is what says *snapped*
+    bevel: 0.13, // chamfer at the break edge, which catches the key light
+    stoneBend: 0.1, // lateral drift of the axis from base to top
+
+    /* --- the eruption --- */
+    riseTime: 0.17, // seconds from buried to full height
+    riseOvershoot: 0.2, // how far past full height the punch carries
+    riseStagger: 0.09, // seconds of random delay between neighbours
+    settle: 0.45, // seconds the overshoot takes to damp out — long, for mass
+    sinkDelay: 0.8, // seconds after `lifetime` before it withdraws
+    sinkTime: 1.6, // seconds to go back into the floor
+
+    /* --- the stone surface (see materials/MonolithStoneMaterial.js) --- */
+    texScale: 2.6, // metres one tile of the scan covers
+    texAmount: 1.0, // 0 falls back to procedural shading entirely
+    normalScale: 1.2,
+    stoneRough: 1.0, // gain on the sampled roughness
+    stoneRoughFloor: 0.34, // ...and the minimum it may reach. Stone is not wet.
+    stoneAO: 1.0, // how much of the sampled occlusion is applied
+    envIntensity: 1.0, // how much of the HDR probe the stone catches
+    breakPale: 0.5, // how much paler an unweathered fracture face is
+    grime: 0.55, // vertical streaking on the faces that *were* exposed
+    damp: 0.6, // how dark the root is — it came from under the floor
+    dampHeight: 0.24, // how far up the stone that reaches, 0..1
+    // The cloud coming back down onto everything it was thrown off. Held at
+    // zero for `coatDelay` first: stone that is pale the instant it appears
+    // never reads as having *just* broken.
+    dustCoat: 0.5, // how far the coating goes at full settle
+    dustCoatSharp: 1.5, // >1 confines it to genuinely up-facing surfaces
+    dustCoatScale: 1.2, // patchiness, features per metre
+    coatDelay: 0.35, // seconds after the impact before it starts
+    coatTime: 2.2, // seconds it takes to build
+    // The scan is a natural rock and reads faintly olive; brutalist concrete is
+    // neutral. `stoneDesat` pulls the albedo toward its own luminance and
+    // `stoneGrade` tints what is left, luminance-preserving, so neither one
+    // darkens the stone. Both at 0 gives the raw scan.
+    stoneDesat: 0.35,
+    stoneGrade: 0.4,
+    colorStoneGrade: '#c7c4be',
+    colorStone: '#9a948a', // the procedural fallback's light value
+    colorStoneDeep: '#3d3a35', // ...and its dark one
+    colorDustCoat: '#cfc6b3',
+    colorDamp: '#241f1b',
+
+    /* ================================================================ */
+    /* 2 · CEMENT DUST SHOCKWAVE                                         */
+    /* ================================================================ */
+    /**
+     * Sampled over the particle's own lifetime: `A` the instant it is born, `D`
+     * as it dies. Non-additive and lit, so the cloud genuinely occludes the
+     * slabs and takes the key light on one side — an additive version of this
+     * is a pale haze the monoliths shine through, and the blast loses all of
+     * its depth.
+     */
+    dustRate: 260, // particles/second along the front
+    dustSize: 1.2,
+    dustSpread: 2.4, // how much bigger a puff gets over its life
+    dustSpeed: 1.6,
+    dustLifetime: 3.4,
+    dustOpacity: 0.045,
+    dustRise: -0.12, // NEGATIVE. Cement dust is heavy: it hangs, then falls.
+    dustTurbulence: 0.85,
+    dustDrag: 1.6,
+    breachDust: 3, // thrown by each stone as it breaks the surface
+    settleDust: 0.4, // × `dustRate` once the cluster is standing
+    plumeDust: 60, // the column that climbs behind the ring
+    plumeSpeed: 4.5,
+    colorDustA: '#a79d8b', // freshly pulverised, catching the sky
+    colorDustB: '#7d7469',
+    colorDustC: '#5c564d',
+    colorDustD: '#2a2823',
+
+    /* --- the ring that rolls out along the ground --- */
+    /**
+     * Emitted as a ring of jets whose radius grows at its own metres-per-second,
+     * each firing outward along its own bearing, so the cloud stays *hollow* in
+     * the middle. That hollow is the entire read: a sphere of smoke expanding
+     * from a point is a fireball, a torus rolling outward with the plume
+     * climbing behind it is a demolition.
+     */
+    ringRate: 300, // particles/second across the whole ring
+    ringJets: 20, // emission points around it
+    ringRadius: 8.0, // how far the wavefront reaches, metres
+    ringSpeed: 7.0, // outward speed of the dust itself, metres/second
+    ringLift: 0.22, // upward share of that. Past ~0.5 it becomes a mushroom.
+    ringSize: 1.5,
+    ringThickness: 0.6, // depth of the emitting band, metres
+    ringTime: 0.9, // seconds the roll lasts
+
+    /* ================================================================ */
+    /* 3 · GEOMETRIC SHRAPNEL                                            */
+    /* ================================================================ */
+    /**
+     * Real instanced rock on a ballistic arc, not billboards: it tumbles, it
+     * bounces off the floor, it loses energy to friction and it is *left lying
+     * there*. The ground keeping the debris is half of why the aftermath reads.
+     */
+    shrapnelCount: 70, // chunks thrown by the blast (capped at 96)
+    shrapnelSize: 0.28, // radius of one chunk, metres
+    shrapnelSizeJitter: 0.55,
+    shrapnelSpeed: 12.0, // launch speed, metres/second
+    shrapnelSpread: 1.0, // outward share of the launch cone
+    shrapnelLift: 0.75, // upward share of it
+    shrapnelGravity: -19.0,
+    shrapnelSpin: 9.0, // radians/second of tumble
+    shrapnelBounce: 0.32, // restitution off the floor
+    shrapnelFriction: 0.55, // how much lateral speed a bounce keeps
+    shrapnelPuffSpeed: 3.5, // impact speed above which a landing kicks up dust
+    shrapnelDarken: 0.35, // seen against the cloud, debris is near silhouette
+    shrapnelTexScale: 0.35, // × `texScale` — a chunk needs the grain read finer
+
+    /* --- the fine stuff the big chunks leave behind --- */
+    gritRate: 90, // chips/second along the front
+    gritSize: 0.05,
+    gritSpeed: 5.5,
+    gritGravity: -22.0, // they arc hard, which is the only thing that says mass
+    gritLifetime: 1.5,
+    breachGrit: 4, // flicked by each stone as it breaks the surface
+    blastGrit: 140, // thrown at the impact
+    trickleRate: 12, // chips/second running off the faces while it stands
+    colorGritA: '#9c9384',
+    colorGritB: '#6e685c',
+    colorGritC: '#403c34',
+    colorGritD: '#22201c',
+
+    /* --- the powder still hanging once the cloud has rolled past --- */
+    moteRate: 45,
+    moteSize: 0.1,
+    moteLifetime: 4.5,
+    moteFall: -0.18, // metres/second — it settles, it does not rise
+    moteTurbulence: 0.5,
+    moteGlow: 0.3, // this is sunlight caught in dust, not a glow. Keep it low.
+    moteOpacity: 0.07,
+    blastMotes: 70,
+    colorMoteA: '#efe6d2',
+    colorMoteB: '#c8bda6',
+    colorMoteC: '#8d8574',
+    colorMoteD: '#2c2a25',
+
+    /* ================================================================ */
+    /* 4 · DEEP FISSURE SCARS                                            */
+    /* ================================================================ */
+    /**
+     * `plate*` values are fractions of the crater's own radius. `plateCells`,
+     * `plateDepth`, `plateBias` and `plateRagged` re-cut the Voronoi when they
+     * move; everything else is a uniform and reshapes a crater already lying on
+     * the floor.
+     */
+    craterRadius: 4.2, // how far the broken plate reaches, metres
+    plateCells: 64, // pieces it is cut into
+    plateDepth: 0.09, // slab thickness, × the radius
+    plateBias: 0.42, // <0.5 makes the middle pieces finer
+    plateRagged: 0.26, // how far the outline bites in, so it is not a disc
+    plateGap: 0.05, // how far each piece shrinks from its neighbours
+    plateHeave: 0.085, // how far the middle is pushed up, × the radius
+    plateTilt: 0.5, // radians a piece cants over
+    plateGrowth: 11.0, // how fast the fracture races outward, metres/second
+    plateWallDark: 0.85, // how black the bottom of an exposed wall goes
+    plateSeamDust: 0.2, // powder drifted along the seams
+    plateCoat: 0.5, // its share of the settled dust — see the note in the ability
+
+    /* --- the cracks racing out past the crater --- */
+    fissureRadius: 8.5, // how far the scarring reaches, metres
+    fissureLife: 9.0, // seconds it lingers — the ground stays broken
+    fissureArms: 7, // main cracks radiating from the impact
+    fissureWander: 1.1, // how hard an arm veers, radians per unit walked
+    fissureWidth: 0.5, // width of the ribbon the crack is drawn on, metres
+    fissureBranches: 0.8, // fraction of the generated forks kept
+    fissureBranchLength: 0.85,
+    fissureOpen: 0.55, // how much of that ribbon is the opening itself, 0..1
+    fissureLip: 0.22, // strength of the pale dust rim beside it
+    fissureDepth: 0.85, // how black the middle of the opening goes
+    fissureBreak: 0.45, // how hard noise eats into both edges
+    fissureBreakScale: 1.8,
+    fissureGrowth: 18.0, // how fast the cracks race out, metres/second
+    colorFissure: '#141210', // the dark in the crack
+    colorFissureLip: '#6f695d', // powdered stone along its edges
+
+    /* --- the marks laid along the line as the rift passes --- */
+    scarRate: 1.4, // marks per metre of front travel
+    scarSpread: 1.6, // mark radius, × the local half-width
+    scarLife: 8.0, // seconds a mark lingers
+    scarWidth: 0.45, // how wide the branches are drawn
+    scarIntensity: 0.22,
+    colorScarA: '#231f1a', // the broken stone
+    // Deliberately muted: the CRACK decal runs this stop at 1.8x while the mark
+    // is fresh, and a hot value here throws a bright smear across the floor that
+    // reads as a sticker rather than as a crack.
+    colorScarB: '#3e3931',
+
+    /* ================================================================ */
+    /* 5 · KINETIC AIR DISTORTION                                        */
+    /* ================================================================ */
+    /**
+     * Written into the refraction buffer rather than drawn — see
+     * `effects/KineticWarp.js`. The ring's offset is genuinely radial, so the
+     * frame is stretched away from the epicentre along the wavefront instead of
+     * just shivering. Both of these ride `post.distortion`, so that master gain
+     * is the first thing to check if nothing appears to be happening.
+     */
+    warpLife: 1.1, // seconds the whole effect lasts
+    warpRadius: 9.0, // how far the pressure ring travels, metres
+    warpThickness: 0.8, // depth of the wave packet, metres
+    warpRipples: 6.5, // bands inside it
+    warpChop: 0.4, // how far the wavefront is broken off a circle, metres
+    warpChopScale: 2.6,
+    warpStrength: 0.45,
+    warpColumn: 0.3, // the churning air standing over the blast
+    warpColumnWidth: 5.0,
+    warpColumnHeight: 4.0,
+    warpScale: 1.5, // features per metre in that churn
+    warpSpeed: 2.6, // how fast it climbs
+
+    /* ================================================================ */
+    /* The impact, the camera and the light                              */
+    /* ================================================================ */
+    shockRadius: 6.5,
+    impactShake: 0.95,
+    shakeDuration: 1.5,
+    // Barely a flash: nothing here is burning. What little there is reads as
+    // the frame being punched, not as light being made.
+    impactFlash: 0.045,
+    rumble: 0.075, // continuous shake while the rift runs
+    colorShockA: '#d8cfbd',
+    colorShockB: '#8d8578',
+    colorFlash: '#e8e0d0',
+
+    /* --- dynamic light --- */
+    // A warm bounce off the dust rather than a source: without it the cluster
+    // is lit by the stage alone and the near faces go to silhouette. Keep it
+    // dim — the moment this reads as a *glow* the ability stops being geology.
+    lightIntensity: 9,
+    lightRadius: 16,
+    lightSettle: 0.5, // how far it falls as the cloud thins
+    lightColor: '#c9b596'
+  },
+
+  /* ------------------------------------------------------------------ */
   /* Camera rig                                                          */
   /* ------------------------------------------------------------------ */
   camera: {
@@ -3153,7 +4037,10 @@ export const ELEMENTS = [
   'glacier',
   'ward',
   'acid',
-  'growth'
+  'growth',
+  'cyber',
+  'venom',
+  'quake'
 ];
 
 /**
@@ -3201,6 +4088,19 @@ export const ELEMENT_META = {
     key: 'N',
     hint: "Arborist's Growth Chrono-Summon",
     cast: CastShape.ZONE
+  },
+  cyber: { label: 'Cyber Serpent', accent: '#5fe9ff', key: 'K', hint: 'Neon Cyber Serpent' },
+  venom: {
+    label: 'Venom Surge',
+    accent: '#a878f0',
+    key: 'J',
+    hint: 'Crystallized Venom Surge'
+  },
+  quake: {
+    label: 'Monolith Rift',
+    accent: '#c9bda6',
+    key: 'M',
+    hint: 'Brutalist Earth Blast'
   }
 };
 

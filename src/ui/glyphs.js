@@ -169,6 +169,67 @@ const GROWTH = WRAP(`
   <circle cx="50" cy="44" r="6"/>
 `);
 
+/**
+ * Cyber Serpent — a serpent drawn as a trace on a board.
+ *
+ * The body is one continuous run with a wedge head, and it *terminates* the way
+ * a trace does: right-angle stubs into vias at both ends, with a pad on the
+ * spine. At 34px the slot reads as a circuit that happens to be alive, which is
+ * the whole ability — the other sigils are creatures or weapons, this one is a
+ * thing that was compiled.
+ */
+const CYBER = WRAP(`
+  <path d="M18 80C34 80 28 58 46 56C64 54 58 32 74 28"/>
+  <path d="M74 28L86 18L94 30L82 40Z"/>
+  <path d="M18 80H10V66"/>
+  <path d="M94 30H98"/>
+  <path d="M6 96H34M46 96H92"/>
+  <circle cx="10" cy="61" r="4"/>
+  <circle cx="40" cy="96" r="5"/>
+  <circle cx="46" cy="56" r="4.5"/>
+  <path d="M88 26L91 29"/>
+`);
+
+/**
+ * Venom Surge — a burst of gems with a drop held at the middle of it.
+ *
+ * Five blades fanning off one point, the outer pair leaning hardest, which is
+ * the starburst the ability actually builds; a broken line across their feet
+ * for the floor they came through; and a single droplet at the heart, because
+ * at 34px the fan alone could be any crystal ability and the drop is the only
+ * mark that says *venom*.
+ */
+const VENOM = WRAP(`
+  <path d="M50 8L57 46L50 58L43 46Z"/>
+  <path d="M24 22L44 50L42 62L31 55Z"/>
+  <path d="M76 22L56 50L58 62L69 55Z"/>
+  <path d="M8 46L36 62L37 71L24 68Z"/>
+  <path d="M92 46L64 62L63 71L76 68Z"/>
+  <path d="M12 84H36M46 84H58M68 84H90"/>
+  <path d="M50 62C56 70 59 74 59 78A9 9 0 0 1 41 78C41 74 44 70 50 62Z"/>
+`);
+
+/**
+ * Monolith Rift — three slabs standing out of a broken floor.
+ *
+ * The only sigil in the set with no curve and no radiating fan in it, because
+ * that is the one thing this slot has to say before anything else: it is not
+ * energy, it is *mass*. Each slab is a closed quadrilateral with a sheared top
+ * — the snapped break that the geometry itself is built around — the middle one
+ * near plumb and the outer pair canted apart, and the line under their feet is
+ * broken rather than continuous so the floor reads as having failed. Two chips
+ * thrown clear of the top corners are all the room there is for the shrapnel.
+ */
+const QUAKE = WRAP(`
+  <path d="M44 82L38 26L54 18L60 80Z"/>
+  <path d="M26 84L14 44L25 39L37 83Z"/>
+  <path d="M66 83L74 34L86 40L78 84Z"/>
+  <path d="M6 88H30M38 88H58M66 88H94"/>
+  <path d="M32 88L28 96M62 88L67 96"/>
+  <path d="M13 22L21 17L18 27Z"/>
+  <path d="M85 15L93 20L86 26Z"/>
+`);
+
 /** Keyed by the ids in `ELEMENTS`. */
 export const ELEMENT_SIGILS = {
   ice: ICE,
@@ -179,5 +240,8 @@ export const ELEMENT_SIGILS = {
   glacier: GLACIER,
   ward: WARD,
   acid: ACID,
-  growth: GROWTH
+  growth: GROWTH,
+  cyber: CYBER,
+  venom: VENOM,
+  quake: QUAKE
 };
