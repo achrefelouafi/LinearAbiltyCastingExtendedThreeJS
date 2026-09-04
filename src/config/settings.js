@@ -322,6 +322,86 @@ export const settings = {
     }
   },
 
+  /* ------------------------------------------------------------------ */
+  /* The cut                                                             */
+  /* ------------------------------------------------------------------ */
+  /**
+   * What happens to a body when the blow that felled it came with an edge on
+   * it — see `combat/Dummy.js#_cut` and `combat/Ragdoll.js#collideRagdolls`.
+   *
+   * Nothing in the sandbox slices by default: a cast has to *ask* for it, and
+   * exactly one does (the Chrono-Summon's lance). Everything here is about the
+   * two halves — where the plane sits, how hard they are driven apart, what
+   * each of them does with the blow, and how they behave once they are lying on
+   * each other.
+   */
+  slice: {
+    enabled: true,
+    /**
+     * Where the plane sits, as a fraction of the body's own height.
+     *
+     * 0.60 is the waist on this export — between the hip joint and the base of
+     * the spine. Below it and the plane goes through the pelvis, which leaves
+     * the top half with a slab of hip hanging off it; much above and the legs
+     * walk away with the ribcage.
+     */
+    height: 0.6,
+    /** Degrees it is tilted off horizontal, tipping away along the blow. */
+    tilt: 16,
+    /** Metres the upper half is lifted clear on the frame the body parts. */
+    separation: 0.09,
+    /**
+     * m/s the halves are driven *apart* along the blow, on top of whatever each
+     * already took of it.
+     *
+     * The top half gets it the way the lance went and the legs get it the other
+     * way, so the two travel in opposite directions instead of following each
+     * other into the same heap — the difference between reading the cut and
+     * reading a body that fell over in two bits. Added evenly rather than
+     * weighted up the body (`Ragdoll#shove`), so neither half is spun by it:
+     * the fold is the blow's doing, this only separates them.
+     */
+    split: 1.8,
+    /**
+     * What each half does with the blow, as multipliers on `impulse` / `lift` /
+     * `spin`. The top of a body cut in half leaves with most of what the lance
+     * had; the bottom is a pair of legs that fold.
+     *
+     * Well under 1 rather than over it, which reads backwards until you see
+     * why: `spin` is applied per *body height*, and half a body is half as
+     * tall, so the same number throws its head twice as hard.
+     */
+    upper: { impulse: 0.78, lift: 0.72, spin: 0.55 },
+    lower: { impulse: 0.22, lift: 0.1, spin: 0.2 },
+
+    /**
+     * The two halves as solid things — see `collideRagdolls`.
+     *
+     * `radius` is the base; every joint scales it by its own size (a pelvis is
+     * a chunk, a wrist is not). `maxPush` is what keeps it from exploding: it
+     * caps how far one frame may separate a pair, so an overlap that starts
+     * deep opens over several frames instead of firing the halves apart.
+     */
+    collide: {
+      enabled: true,
+      /** Metres, before each joint's own size multiplier. */
+      radius: 0.09,
+      /** How much of the closing speed comes back, and how much slide is lost. */
+      bounce: 0.2,
+      friction: 0.45,
+      /** Metres a single frame may push one pair apart. */
+      maxPush: 0.05
+    },
+
+    /** What the cut opens, and how much it glows in its own right. */
+    interiorColor: '#2a1a14',
+    interiorEmissive: 0.35,
+    /** The hot line the edge leaves, and how wide that band is (× height). */
+    edgeColor: '#b9ff72',
+    edgeEmissive: 4.0,
+    edgeWidth: 0.014
+  },
+
   /* ================================================================== */
   /* ICE — ability one                                                   */
   /* ================================================================== */
@@ -2438,6 +2518,515 @@ export const settings = {
     colorFlash: '#8fff28' // the full-screen flash when the pool opens
   },
 
+  /* ================================================================== */
+  /* GROWTH — the Arborist's Growth Chrono-Summon                        */
+  /* ================================================================== */
+  /**
+   * A summon rather than a strike, and the only ability in the set that
+   * *chooses* what it hits.
+   *
+   * A seed of green light runs across the floor to the aimed circle. A nature
+   * sigil opens there and races out to the boundary; a nest of woody tendrils
+   * tears up out of it, climbing and curling, unfurling foliage as the growth
+   * front passes; and an arcane bloom rises out of the middle of them and opens,
+   * whorl by whorl, over a core that is visibly winding up. Then it fires: a
+   * lance of green light to the nearest body still standing, one at a time,
+   * and what it goes through comes apart at the waist.
+   *
+   * Five layers, one per panel of the reference sheet:
+   *
+   *   1. **the nature sigil** — SDF rails, a generated rune band, an inscribed
+   *      star and a wandering vine filigree, all in metres from the centre so
+   *      the mark re-scales rather than stretching.
+   *      (`materials/NatureSigilMaterial.js`)
+   *   2. **the wild-growth tendrils** — instanced tubes placed entirely in a
+   *      vertex shader from an analytic path, lit and shadow casting.
+   *      (`materials/GrowthVineMaterial.js`)
+   *   3. **the foliage** — instanced leaves clipped to those same stems by the
+   *      same path function, so they can never come loose from the wood.
+   *   4. **the arcane bloom** — three whorls of petals on an arc, opening by
+   *      animating one angle, over an additive core and its halo.
+   *      (`materials/ArcaneBloomMaterial.js`)
+   *   5. **motes, pollen and mist** — GPU particles, plus the leaves that drift
+   *      off the nest as it withers.
+   *
+   * And the lance, which is layer six in everything but the reference sheet:
+   * `materials/GrowthLanceMaterial.js`, one instance per shot, and the cut
+   * itself in `settings.slice`.
+   *
+   * **The rule that keeps the editor honest.** A cast captures a seed and a
+   * handful of timestamps. Not one metre, radian or second is recorded: the
+   * footprint, the nest, the bloom, the lances and the light are all resolved
+   * against this block inside the update loop, which runs on a zero-length
+   * frame too. Drag `footprint radius` while a summon is standing and the
+   * sigil, the tendrils, the foliage and the bloom all re-seat around it.
+   */
+  growth: {
+    /* --- the cast --- */
+    range: 22.0, // maximum cast distance, metres
+    minRange: 0.0, // it can be planted at the caster's own feet
+    zoneRadius: 4.2, // the footprint — what the circle indicator measures out
+    speed: 62.0, // how fast the seed runs to the point, metres/second
+    cooldown: 3.2,
+    castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
+    lifetime: 7.4, // seconds the summon stands, once it has bloomed
+    fadeTime: 2.2, // seconds it takes to wither
+
+    /* --- the order things happen in, seconds from the seed landing --- */
+    /**
+     * The summon is a *sequence*, and this is it. Nothing here overlaps by
+     * accident: the sigil has to be readable before the wood tears through it,
+     * the nest has to have a shape before the bloom rises out of it, and the
+     * bloom has to be open before the core is allowed to fire.
+     */
+    sigilTime: 0.42, // the mark races out to the boundary
+    vineDelay: 0.18, // ... and the tendrils are already coming up behind it
+    vineTime: 1.15, // how long the nest takes to reach full height
+    vineStagger: 0.38, // how much of that one stem may lag the first by
+    bloomDelay: 0.85, // when the bud starts to lift out of the nest
+    bloomTime: 1.05, // how long the whorls take to open
+    fireDelay: 0.35, // seconds after the bloom is open before the first lance
+
+    /* --- where the seed leaves the caster --- */
+    handHeight: 1.25, // metres above the floor
+    handForward: 0.62, // metres in front of the caster
+    handSide: -0.14, // metres to the side (+ follows `Ability#side`)
+
+    /* --- the pulse everything glowing rides --- */
+    /**
+     * Not a heartbeat and not a boil: a **breath**. Two sines a fifth apart, so
+     * the envelope drifts in and out of phase with itself over about twenty
+     * seconds and the summon never lands twice on the same rhythm inside one
+     * cast. The sigil brightens on it, the core charges on it, the light swells
+     * on it and the motes come faster on it — one number, five passes.
+     */
+    pulseRate: 1.15, // radians/second through the envelope
+    pulseDepth: 0.55, // how hard it modulates, 0 = flatline
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 1 — the nature sigil                                          */
+    /* ------------------------------------------------------------------ */
+    sigilRailWidth: 0.032, // stroke thickness, metres
+    sigilRailOuter: 1.0, // the boundary rail, × footprint
+    sigilRailInner: 0.84,
+    sigilRailHub: 0.2,
+    sigilRailGlow: 1.7,
+    sigilSpin: 0.014, // revolutions/second the ring turns
+
+    sigilRunes: 46, // glyphs around the band
+    sigilRuneBand: 0.32, // height of the band, metres
+    sigilRuneSeat: 0.92, // where it sits, × footprint
+    sigilRuneWeight: 0.05, // stroke thickness, cell space
+    sigilRuneStrokes: 0.52, // how many candidate strokes a glyph keeps
+    sigilRuneSweep: 1.5, // brightness of the read head running round it
+    sigilRuneSweepSpeed: 0.13, // revolutions/second
+    sigilRuneSweepWidth: 0.09, // how much of the ring it covers
+    sigilRuneFlicker: 0.22, // per-glyph brightness stutter
+    sigilRuneGlow: 2.3,
+
+    sigilTicks: 0.75, // brightness of the graduations on the outer rail
+    sigilTickCount: 72,
+    sigilTickWidth: 0.32,
+    sigilTickLength: 0.055, // × footprint
+
+    sigilStar: 1.0, // the inscribed triangle and its inverse
+    sigilStarRadius: 0.66, // × footprint
+    sigilStarWidth: 0.028, // metres
+    sigilStarSpin: -0.009, // counter to the ring
+
+    sigilFiligree: 0.95, // the vine arcs woven between the rails
+    sigilFiligreeSeat: 0.52, // × footprint
+    sigilFiligreeAmp: 0.075, // how far they wander, × footprint
+    sigilFiligreeLobes: 6, // lobes around the circle
+    sigilFiligreeWidth: 0.02, // metres
+    sigilFiligreeSpin: 0.018,
+
+    sigilPool: 0.3, // the wash of light inside the circle
+    sigilPoolFalloff: 2.2,
+    sigilGrain: 0.45, // break-up over that wash
+    sigilGrainScale: 2.6,
+    sigilOpacity: 1.0,
+    sigilGlow: 1.15,
+    sigilHeight: 0.028, // hover distance above the floor, metres
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 2 — the wild-growth tendrils                                  */
+    /* ------------------------------------------------------------------ */
+    vines: 15, // tendrils in the nest (capacity is 18)
+    vineSeat: 0.74, // where a foot is planted, × footprint
+    vineSpread: 0.75, // how far bearings scatter off even spacing
+    vineHeight: 3.2, // how tall a full-grown tendril stands, metres
+    vineHeightJitter: 0.6,
+    /**
+     * The rise curve. Under 1 the stem leaves the floor fast and levels off —
+     * which is what a climbing plant does, and what stops the nest reading as a
+     * cone with its point in the air.
+     */
+    vineRise: 0.74,
+    vineBelly: 0.36, // how far it bows outward at the waist, × its foot radius
+    vineLean: 0.55, // tip radius, × foot radius — how hard it closes over
+    vineTwist: 0.12, // turns taken climbing
+    vineCurlAt: 0.78, // where the tip starts to spiral, 0..1
+    vineCurlTurns: 0.45, // and how far round it goes
+    vineCurlPinch: 0.42, // how tight that spiral draws in
+    vineCurlLift: 0.1, // and how much it climbs while it does
+    vineWander: 0.75, // baked-in low-frequency wander, metres
+    vineWanderScale: 2.2,
+    vineSway: 0.085, // live sway at the tip, metres
+    vineSwaySpeed: 0.75,
+    vineThick: 0.085, // half-width at the foot, metres
+    vineTaper: 0.24, // ... as a fraction of that, at the tip
+    vineKnots: 0.32, // how lumpy the stem is
+    vineKnotScale: 9.0,
+
+    /* --- what the wood is made of --- */
+    barkScale: 5.5, // grain features per metre
+    barkContrast: 1.6,
+    barkFibre: 0.55, // fibres running the length of the stem
+    barkFibreBands: 3.0,
+    barkFibreScale: 26.0,
+    barkRoughness: 0.92,
+    barkEnv: 0.12, // how much of the probe the wood picks up
+
+    seamWidth: 0.05, // how wide the bioluminescent seams burn
+    seamBands: 2.4, // seams around the stem
+    seamScale: 5.0, // ... and along it
+    seamFlow: 0.35, // how fast the field crawls through them
+    seamGlow: 0.45,
+    sapPulse: 1.4, // a bright band of sap climbing the stem
+    sapSpeed: 0.34,
+    sapWidth: 0.12,
+    frontGlow: 5.0, // the bud at the growing tip
+    frontWidth: 0.09,
+    vineRim: 0.22, // sheath of light around the silhouette
+    vineRimPower: 2.6,
+    vineGlow: 1.0,
+
+    witherRise: 0.58, // how much the wither follows height vs pure noise
+    witherScale: 3.2,
+    witherEdge: 0.1, // width of the burn line as it eats back
+    witherEdgeGlow: 2.4,
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 3 — the foliage                                               */
+    /* ------------------------------------------------------------------ */
+    leaves: 150, // leaves across the whole nest (capacity is 320)
+    leafStart: 0.15, // nothing grows out of the first stretch of a stem
+    leafEnd: 0.97,
+    leafSize: 0.32, // stalk to tip, metres
+    leafSizeJitter: 0.6,
+    leafAspect: 0.42, // half-width, × length
+    leafBias: 0.72, // where the blade is widest, <1 pushes it toward the tip
+    leafPoint: 0.78, // how sharply it comes to a point
+    leafPitch: 0.55, // radians the stalk is swung toward the stem's tip
+    leafPitchJitter: 0.95,
+    leafDroop: 0.35, // how far the blade sags along its own length
+    leafCup: 0.22, // how far it channels across
+    leafOpen: 0.12, // how long a leaf takes to unfurl behind the front
+    leafFlutter: 0.09, // radians it stirs
+    leafFlutterSpeed: 1.7,
+
+    leafVeins: 7, // laterals along the blade
+    leafVeinWidth: 0.09,
+    leafVeinSkew: 0.55, // how far they tip toward the tip
+    leafRibWidth: 0.055, // the midrib
+    leafVeinGlow: 0.6,
+    leafTranslucency: 0.85, // light coming *through* the blade
+    leafSheen: 0.14, // specular off the cuticle
+    leafMottle: 0.3,
+    leafRoughness: 0.6,
+    leafEnv: 0.18,
+    leafGlow: 1.0,
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 4 — the arcane bloom                                          */
+    /* ------------------------------------------------------------------ */
+    bloomHeight: 3.2, // where the flower hangs, metres above the floor
+    bloomRise: 0.9, // how far it climbs while it opens, metres
+    bloomScale: 2.1, // master size of the flower
+    bloomSpin: 0.006, // revolutions/second the whorls turn, alternating
+    bloomBob: 0.055, // metres it breathes up and down
+    bloomBobSpeed: 0.6,
+
+    whorlOuter: 11, // petals in each whorl (capacity is 30 across all three)
+    whorlMid: 9,
+    whorlInner: 7,
+    petalLengthOuter: 1.0, // × bloom scale
+    petalLengthMid: 0.72,
+    petalLengthInner: 0.44,
+    /**
+     * Radians from straight up, once open.
+     *
+     * The read of a flower is entirely in this stack: the outer whorl lying
+     * almost flat, the middle one half raised, the inner one still cupped
+     * around the core. Flatten them all to the same angle and it is a rosette.
+     */
+    petalPitchOuter: 1.2,
+    petalPitchMid: 0.87,
+    petalPitchInner: 0.52,
+    petalCurveOuter: 0.64, // extra radians the blade keeps turning as it runs out
+    petalCurveMid: 0.5,
+    petalCurveInner: 0.32,
+    petalWidthOuter: 0.46, // half-width, × length
+    petalWidthMid: 0.48,
+    petalWidthInner: 0.52,
+    petalLiftOuter: -0.05, // where the whorl is seated up the stack, × scale
+    petalLiftMid: 0.03,
+    petalLiftInner: 0.09,
+    petalRoll: 0.31, // radians each whorl is rotated off the last
+    petalPitchClosed: 0.16, // the bud: everything nearly vertical
+    petalBudLength: 0.45, // ... and shorter
+    petalOpenStagger: 0.22, // how far behind the outer whorl the next one opens
+    petalWidthBias: 0.6, // where the blade is widest
+    petalWidthPoint: 0.62, // how sharply it points
+    petalCup: 0.22, // how far it channels
+    petalTwist: 0.22, // radians it twists about its own spine, at the tip
+    petalJitter: 0.1, // angular scatter off even spacing
+
+    petalMargin: 0.17, // the pale edge, as a fraction of the half-width
+    petalMarginGlow: 0.1,
+    petalVeins: 6,
+    petalVeinWidth: 0.1,
+    petalVeinSkew: 0.7,
+    petalRibWidth: 0.07,
+    petalVeinGlow: 0.18,
+    petalTipGlow: 0.25, // the tips light as the core charges
+    petalChargeGain: 2.2,
+    petalTranslucency: 0.45, // light coming through the blade
+    petalRim: 0.12,
+    petalRimPower: 2.4,
+    petalShimmer: 0.25, // the chrono band crossing the whole bloom
+    petalShimmerScale: 1.6,
+    petalShimmerSpeed: 0.7,
+    petalRoughness: 0.6,
+    petalEnv: 0.08,
+    petalGlow: 0.85,
+
+    /* --- the core --- */
+    coreSize: 0.26, // radius, metres, × bloom scale
+    coreIntensity: 0.7,
+    coreChargeGain: 2.6, // how much brighter it runs as a lance winds up
+    coreFill: 1.7, // how hard it is weighted toward the axis
+    coreRim: 0.9,
+    coreRimPower: 2.2,
+    coreBoil: 0.15, // how far its silhouette churns
+    coreBoilScale: 2.6,
+    coreFilament: 1.0, // threads turning inside it
+    coreFilamentScale: 4.5,
+    coreFilamentSpeed: 0.5,
+    coreBudDim: 0.3, // how far it is turned down while the bud is closed
+    coreSoftFade: 0.4, // metres of soft fade where it meets the petals
+
+    /* --- the halo and the chrono rings --- */
+    haloSize: 2.2, // radius, metres, × bloom scale
+    haloGlow: 0.5,
+    haloFalloff: 2.6,
+    haloRays: 0.28, // spokes combed out of the bloom
+    haloRayCount: 14,
+    haloRaySharp: 6,
+    haloRaySpin: 0.02,
+    haloRingInner: 0.52, // the two dials, × halo radius
+    haloRingOuter: 0.78,
+    haloRingWidth: 0.012,
+    haloRingSpin: -0.05,
+    haloTicks: 0.85, // graduations on the outer dial
+    haloTickCount: 48,
+    haloTickWidth: 0.45,
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 5 — motes, pollen and mist                                    */
+    /* ------------------------------------------------------------------ */
+    moteRate: 90, // spirit motes lifted off the nest, per second
+    moteSize: 0.055,
+    moteLifetime: 2.6,
+    moteSpeed: 0.85,
+    moteRise: 0.55, // gravity, so they climb
+    moteTurbulence: 0.7,
+    colorMoteA: '#ffffff',
+    colorMoteB: '#b6ffb0',
+    colorMoteC: '#3ddc7f',
+    colorMoteD: '#0b3a22',
+
+    pollenRate: 34, // heavier flecks that hang in the air
+    pollenSize: 0.09,
+    pollenLifetime: 4.2,
+    pollenSpeed: 0.35,
+    pollenRise: 0.05,
+    colorPollenA: '#fff6c8',
+    colorPollenB: '#e8ff9a',
+    colorPollenC: '#9ad86a',
+    colorPollenD: '#2a4a20',
+
+    mistRate: 5, // the low bank the nest stands in
+    mistSize: 0.9,
+    mistLifetime: 3.6,
+    mistSpeed: 0.5,
+    mistRise: 0.18,
+    mistSpread: 0.55, // how far it runs out past the boundary
+    mistOpacity: 0.14,
+    colorMistA: '#cfeede',
+    colorMistB: '#8fc9a6',
+    colorMistC: '#4a7d61',
+    colorMistD: '#16281f',
+
+    driftRate: 7, // leaves shed off the nest, per second
+    driftSize: 0.16,
+    driftLifetime: 4.0,
+    driftSpeed: 0.7,
+    driftGravity: -1.1,
+    driftSpin: 3.2,
+    colorDriftA: '#d8ff9e',
+    colorDriftB: '#7fd85e',
+    colorDriftC: '#3c8a44',
+    colorDriftD: '#1a3320',
+
+    /* --- one-shot bursts --- */
+    seedMotes: 30, // thrown from the caster's hand as the seed leaves
+    creepRate: 26, // motes off the seed while it runs across the floor
+    trailRate: 2.6, // ground marks per metre of that run
+    rootMotes: 120, // ... and the gout as it lands
+    rootLeaves: 26,
+    rootMist: 16,
+    bloomMotes: 180, // what the flower throws as it opens
+    bloomPollen: 90,
+    bloomLeaves: 34,
+    witherLeaves: 90, // leaves torn off as the nest goes
+
+    /* --- the marks it leaves on the floor --- */
+    stainRadius: 0.85,
+    stainLife: 5.0,
+    stainIntensity: 0.5,
+    colorStain: '#20301f',
+    colorStainEdge: '#5f8a3a',
+
+    /* ------------------------------------------------------------------ */
+    /* The lance                                                           */
+    /* ------------------------------------------------------------------ */
+    /**
+     * What the bloom does once it is open.
+     *
+     * It picks the nearest body still standing inside `laserRange` of itself,
+     * winds up for `laserWarmup` (which is what the core's charge and the petal
+     * tips are showing you), then fires. One at a time by default: a summon
+     * that cuts down four bodies on the same frame is a screen-clear, and a
+     * summon that works its way round the ring is a *thing standing there
+     * deciding*. Raise `laserVolley` if you want the screen-clear.
+     */
+    laserEnabled: true,
+    laserRange: 11.0, // metres from the bloom
+    laserInterval: 0.62, // seconds between shots
+    laserWarmup: 0.26, // seconds the core charges before one leaves
+    laserVolley: 1, // targets taken per shot
+    laserLife: 0.42, // seconds a lance is on screen
+    laserWidth: 1.0, // master on its thickness
+    laserAim: 0.62, // where up the body it lands, 0 feet 1 head
+    laserShake: 0.16, // the knock on the camera
+    laserFlash: 0.16, // and the flash
+    /**
+     * How the two halves leave. Lower than the field's own numbers on purpose:
+     * this is a cut, not a blast, and a body that is *thrown* by being cut in
+     * half reads as an explosion going off inside it.
+     */
+    laserHit: { impulse: 3.4, lift: 2.6, spin: 1.6 },
+    cutLeaves: 40, // what comes out of the wound
+    cutMotes: 90,
+    cutSpeed: 4.5,
+    cutBurst: 0.65, // metres the pressure shell over the wound opens to
+
+    lanceRadius: 0.085, // half-width at the far end, metres
+    lanceMuzzleRadius: 0.16, // ... and where it leaves the bloom
+    lanceRadiusCurve: 0.6,
+    lanceFlare: 0.7, // how much it opens where it lands
+    lanceFlareWidth: 0.14,
+    lanceThrob: 0.16, // pressure waves along it
+    lanceThrobBands: 5,
+    lanceThrobSpeed: 2.2,
+    lanceWander: 0.05, // metres the axis drifts
+    lanceWanderScale: 4,
+    lanceWanderSpeed: 1.6,
+    lanceStrike: 0.12, // fraction of its life spent arriving
+    lanceHold: 0.42, // ... and how long before it starts to go
+    lanceCoreFill: 2.4, // how hard the white is weighted to the axis
+    lanceEdgePower: 2.6,
+    lanceSheath: 0.75,
+    lanceCoils: 2, // helices wound around it
+    lanceCoilTurns: 7,
+    lanceCoilSpeed: 1.1,
+    lanceCoilWidth: 0.34,
+    lanceCoilGain: 0.9,
+    lanceMotes: 1.1, // flecks carried along inside it
+    lanceMoteScale: 14,
+    lanceMoteSpeed: 3.2,
+    lanceHeadGlow: 2.4,
+    lanceHeadWidth: 0.06,
+    lanceIntensity: 2.5,
+    lanceOpacity: 1.0,
+    lanceSoftFade: 0.35,
+
+    /* ------------------------------------------------------------------ */
+    /* Impact, camera and light                                            */
+    /* ------------------------------------------------------------------ */
+    muzzleSize: 0.55, // the flash at the caster's hand
+    muzzleIntensity: 1.4,
+    castFlash: 0.1,
+    rootBurst: 2.4, // the shell the sigil throws as it opens
+    rootIntensity: 1.5,
+    bloomFlash: 0.22,
+    rootShake: 0.3,
+    shakeDuration: 0.5,
+    bloomShake: 0.18,
+    holdShake: 0.035, // the standing rumble
+    rumble: 0.03, // ... and the one while the seed is running
+
+    lightIntensity: 12,
+    lightRadius: 12,
+    lightHeight: 0.45, // where the light sits, 0 the floor 1 the bloom
+    lightPulse: 0.45, // how much of it the breath owns
+
+    /* --- the palette --- */
+    colorSigil: '#5fe08a',
+    colorSigilCore: '#e6fff0',
+    colorRune: '#8affb0',
+    colorSigilPool: '#2f8f5a',
+    colorFront: '#d8ffb0',
+
+    colorBark: '#33291d',
+    colorBarkLight: '#6b5940',
+    colorSeam: '#57e08c',
+    colorSeamCore: '#bfffd8',
+    colorWither: '#ff9a3c', // the ember the burn line leaves behind it
+
+    colorLeaf: '#4e9c46',
+    colorLeafTip: '#a8e86a',
+    colorLeafDeep: '#1d4426',
+    colorLeafVein: '#9dffb4',
+
+    colorPetalOuter: '#12543f',
+    colorPetalMid: '#1f7a5c',
+    colorPetalInner: '#e8c05a',
+    colorPetalBase: '#0d2c22',
+    colorPetalMargin: '#bfe89a',
+    colorPetalVein: '#4fd89a',
+
+    colorCore: '#ffffff',
+    colorCoreMid: '#7cffd4',
+    colorCoreEdge: '#0e7a56',
+    colorHalo: '#5fe0b0',
+    colorHaloRing: '#c9ffe4',
+
+    colorLanceCore: '#ffffff',
+    colorLanceInner: '#a8ffb0',
+    colorLanceOuter: '#2fbf6a',
+    colorLanceCoil: '#dbff7a',
+
+    colorBurstA: '#e8ffd8',
+    colorBurstB: '#5fd88a',
+    colorBurstC: '#1d5c3a',
+    colorCastFlash: '#a8ffc8',
+    colorFlash: '#d8ffd0',
+    lightColor: '#6effa8'
+  },
+
   /* ------------------------------------------------------------------ */
   /* Camera rig                                                          */
   /* ------------------------------------------------------------------ */
@@ -2563,7 +3152,8 @@ export const ELEMENTS = [
   'snare',
   'glacier',
   'ward',
-  'acid'
+  'acid',
+  'growth'
 ];
 
 /**
@@ -2603,6 +3193,13 @@ export const ELEMENT_META = {
     accent: '#9dff2b',
     key: 'Z',
     hint: 'Poison Acid Aura',
+    cast: CastShape.ZONE
+  },
+  growth: {
+    label: "Arborist's Growth",
+    accent: '#6effa8',
+    key: 'N',
+    hint: "Arborist's Growth Chrono-Summon",
     cast: CastShape.ZONE
   }
 };

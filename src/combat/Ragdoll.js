@@ -107,6 +107,43 @@ const WEIGHTS = {
 };
 const DEFAULT_WEIGHT = 1.35;
 
+/**
+ * How big a joint is, as a multiplier on `settings.slice.collide.radius`.
+ *
+ * Only consulted for the handful of joints a *cut* body is solid with — see
+ * `collideRagdolls`. A pelvis is a chunk and a wrist is not, and a torso that
+ * lands on a pair of legs has to come to rest on the thighs rather than sink
+ * into them until the ankles catch it.
+ */
+const SIZES = {
+  Hips: 1.4,
+  Spine: 1.4,
+  Spine1: 1.4,
+  Spine2: 1.4,
+  Neck: 0.8,
+  Head: 1.35,
+  HeadTop_End: 1,
+  LeftShoulder: 1,
+  RightShoulder: 1,
+  LeftUpLeg: 1.25,
+  RightUpLeg: 1.25,
+  LeftLeg: 1,
+  RightLeg: 1,
+  LeftFoot: 0.85,
+  RightFoot: 0.85,
+  LeftToeBase: 0.6,
+  RightToeBase: 0.6,
+  LeftToe_End: 0.55,
+  RightToe_End: 0.55,
+  LeftArm: 0.9,
+  RightArm: 0.9,
+  LeftForeArm: 0.75,
+  RightForeArm: 0.75,
+  LeftHand: 0.65,
+  RightHand: 0.65
+};
+const DEFAULT_SIZE = 1;
+
 /** Extra constraints that give the torso and the pelvis a shape to keep. */
 const BRACES = [
   ['Hips', 'Spine1'],
@@ -174,9 +211,22 @@ export class Ragdoll {
    * @param {object} [world]
    * @param {number} [world.groundY] the floor this body lands on. The sandbox
    *   floor is dead flat at y = 0, which is what every ability assumes too.
+   * @param {Set<string>|null} [world.include] the joints to simulate, if not
+   *   all of them. This is how a body cut in half becomes *two* solvers: each
+   *   half is handed the joints it actually owns, and a chain outside the set
+   *   simply has no particle. Leave the legs in the torso's solver and they
+   *   land on the floor holding an invisible pelvis a metre in the air, with
+   *   the visible half of the body hanging off it.
+   * @param {Set<string>|null} [world.collide] the joints that are *solid* to
+   *   another body — see `collideRagdolls`. A strict subset of `include`: the
+   *   joints either side of a cut are simulated by both halves and start on
+   *   top of each other, so making those solid would shove the two halves
+   *   across the field before the cut had finished happening.
    */
-  constructor(bones, { groundY = 0 } = {}) {
+  constructor(bones, { groundY = 0, include = null, collide = null } = {}) {
     this.floor = groundY;
+    this._include = include;
+    this._collide = collide;
     this.asleep = false;
     this._still = 0;
     this._accumulator = 0;
@@ -201,6 +251,9 @@ export class Ragdoll {
     this.entries = [];
     this.constraints = [];
     this.limits = [];
+    /** Indices of the joints another body can land on, and their sizes. */
+    this.contacts = [];
+    this.contactSize = [];
 
     this.hips = null;
     this._hipsParentInverse = new Matrix4();
@@ -223,6 +276,7 @@ export class Ragdoll {
     for (const [name, parentName, aimName] of JOINTS) {
       const bone = bones.get(name);
       if (!bone) continue; // a rig without this joint simply has no particle here
+      if (this._include && !this._include.has(name)) continue; // the other half owns it
 
       const position = bone.getWorldPosition(new Vector3());
       const index = this.px.length;
@@ -345,6 +399,15 @@ export class Ragdoll {
       this.limits.push({ a: ia, b: ib, min: span * fold, max: span * STRAIGHT });
     }
 
+    /* ---- the handful of spheres another body can land on ---- */
+    if (this._collide) {
+      for (const [name, index] of this.index) {
+        if (!this._collide.has(name)) continue;
+        this.contacts.push(index);
+        this.contactSize.push(SIZES[name] ?? DEFAULT_SIZE);
+      }
+    }
+
     /* ---- how tall it was, for weighting the blow it is about to take ---- */
     let min = Infinity;
     let max = -Infinity;
@@ -442,6 +505,39 @@ export class Ragdoll {
       this.vx[i] += x;
       this.vy[i] += y;
       this.vz[i] += z;
+    }
+    this.asleep = false;
+    this._still = 0;
+  }
+
+  /**
+   * Write the current particle cloud back onto the skeleton.
+   *
+   * `update` already does this at the end of a step. This is for the one case
+   * that happens *after* it: two halves of a cut body are solved
+   * independently and only then pushed out of each other
+   * (`collideRagdolls`), so whoever owns both has to ask for the pose again.
+   */
+  repose() {
+    if (this.valid) this._pose();
+  }
+
+  /**
+   * Move the whole body without giving it any velocity for having moved.
+   *
+   * Both halves of a cut body start on exactly the same particles, and two
+   * bodies occupying one space push apart over several frames of solving
+   * rather than parting on the frame the edge went through. This opens the gap
+   * by hand, on that one frame, and lets the impulses do the rest.
+   */
+  displace(x, y, z) {
+    for (let i = 0; i < this.px.length; i++) {
+      this.px[i] += x;
+      this.py[i] += y;
+      this.pz[i] += z;
+      this.prevX[i] += x;
+      this.prevY[i] += y;
+      this.prevZ[i] += z;
     }
     this.asleep = false;
     this._still = 0;
@@ -682,4 +778,130 @@ export class Ragdoll {
 /** `mixamorig:LeftArm` and `mixamorigLeftArm` are both `LeftArm`. */
 export function stripNamespace(name) {
   return String(name).split(':').pop().replace(/^mixamorig/i, '');
+}
+
+/* -------------------------------------------------------------------- */
+/* two bodies at once                                                    */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Make the two halves of a cut body solid to each other.
+ *
+ * Each half is its own solver and neither knows the other exists, so without
+ * this the torso falls *through* the legs it was cut off and the whole thing
+ * reads as two sprites rather than as one body coming apart. A dozen spheres
+ * against a dozen, once a frame, for the second or two a corpse is still
+ * moving.
+ *
+ * Positions first: the overlap is opened along the line between the pair, split
+ * by inverse mass so a head bounces off a thigh instead of shoving it aside,
+ * and clamped per frame (`maxPush`) so a pair that starts badly overlapped
+ * separates over several frames rather than being fired apart on one. Then the
+ * velocities: the approaching part of the relative velocity is reversed
+ * (`bounce`) and the sliding part is scrubbed (`friction`), which is what turns
+ * a pass-through into a landing.
+ *
+ * A body that has gone to sleep is treated as furniture — infinite mass, never
+ * woken — so a torso coming to rest on a settled pair of legs settles too,
+ * rather than the two of them nudging each other awake for ever.
+ *
+ * @param {Ragdoll|null} a
+ * @param {Ragdoll|null} b
+ * @returns {boolean} whether anything actually touched, so the caller can skip
+ *   re-posing two skeletons on the frames nothing did
+ */
+export function collideRagdolls(a, b) {
+  if (!a?.valid || !b?.valid) return false;
+  if (!a.contacts.length || !b.contacts.length) return false;
+  // Both settled: nothing is moving, so nothing can newly overlap, and pushing
+  // on a resting pair is how a corpse ends up twitching for ever.
+  if (a.asleep && b.asleep) return false;
+
+  const config = settings.slice.collide;
+  if (!config.enabled) return false;
+  const base = Math.max(0, config.radius);
+  if (base <= 0) return false;
+
+  const maxPush = Math.max(0, config.maxPush);
+  const bounce = Math.max(0, config.bounce);
+  const friction = Math.min(1, Math.max(0, config.friction));
+  let touched = false;
+
+  for (let ai = 0; ai < a.contacts.length; ai++) {
+    const i = a.contacts[ai];
+    const wa = a.asleep ? 0 : a.w[i];
+    const ra = base * a.contactSize[ai];
+
+    for (let bi = 0; bi < b.contacts.length; bi++) {
+      const j = b.contacts[bi];
+      const wb = b.asleep ? 0 : b.w[j];
+      const total = wa + wb;
+      if (total < 1e-6) continue; // two sleepers, or two anchors: nothing to move
+
+      const reach = ra + base * b.contactSize[bi];
+      let nx = b.px[j] - a.px[i];
+      let ny = b.py[j] - a.py[i];
+      let nz = b.pz[j] - a.pz[i];
+      const squared = nx * nx + ny * ny + nz * nz;
+      if (squared >= reach * reach) continue;
+
+      const distance = Math.sqrt(squared);
+      if (distance < 1e-6) {
+        // Dead centre, which is where the joints either side of the cut start.
+        // Up is the axis the halves were parted along, so it is the one to pick
+        // when the geometry has no opinion.
+        nx = 0;
+        ny = 1;
+        nz = 0;
+      } else {
+        const inverse = 1 / distance;
+        nx *= inverse;
+        ny *= inverse;
+        nz *= inverse;
+      }
+
+      touched = true;
+
+      /* ---- position: open the overlap, but never all at once ---- */
+      const push = Math.min(reach - distance, maxPush);
+      const ka = (wa / total) * push;
+      const kb = (wb / total) * push;
+      a.px[i] -= nx * ka;
+      a.py[i] -= ny * ka;
+      a.pz[i] -= nz * ka;
+      b.px[j] += nx * kb;
+      b.py[j] += ny * kb;
+      b.pz[j] += nz * kb;
+
+      /* ---- velocity: land on it rather than sink into it ---- */
+      let rvx = b.vx[j] - a.vx[i];
+      let rvy = b.vy[j] - a.vy[i];
+      let rvz = b.vz[j] - a.vz[i];
+      const normal = rvx * nx + rvy * ny + rvz * nz;
+      if (normal >= 0) continue;
+
+      const impulse = (-(1 + bounce) * normal) / total;
+      a.vx[i] -= nx * impulse * wa;
+      a.vy[i] -= ny * impulse * wa;
+      a.vz[i] -= nz * impulse * wa;
+      b.vx[j] += nx * impulse * wb;
+      b.vy[j] += ny * impulse * wb;
+      b.vz[j] += nz * impulse * wb;
+
+      // Whatever of the closing speed was sideways: scrubbed, so a torso
+      // dropped on a hip stays on it instead of skating off.
+      rvx -= nx * normal;
+      rvy -= ny * normal;
+      rvz -= nz * normal;
+      const slide = friction / total;
+      a.vx[i] += rvx * slide * wa;
+      a.vy[i] += rvy * slide * wa;
+      a.vz[i] += rvz * slide * wa;
+      b.vx[j] -= rvx * slide * wb;
+      b.vy[j] -= rvy * slide * wb;
+      b.vz[j] -= rvz * slide * wb;
+    }
+  }
+
+  return touched;
 }

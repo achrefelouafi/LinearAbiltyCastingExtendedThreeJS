@@ -13,6 +13,7 @@ import { settings } from '../config/settings.js';
 import { getColor } from '../utils/color.js';
 import { frame } from '../core/FrameUniforms.js';
 import { patchOnBeforeCompile } from '../utils/shaderPatch.js';
+import { LAYER } from '../core/Layers.js';
 
 const _sunDir = new Vector3();
 
@@ -80,6 +81,10 @@ export class Environment {
     this.sun.shadow.bias = settings.environment.shadowBias;
     this.sun.shadow.normalBias = 0.035;
     this.sun.shadow.radius = settings.environment.shadowRadius;
+    // Ability geometry that is placed in its own vertex shader still has to lay
+    // a shadow, and the shadow map is the one pass where three honours an
+    // object's `customDepthMaterial`. See LAYER.SHAPED.
+    this.sun.shadow.camera.layers.enable(LAYER.SHAPED);
 
     const shadowCamera = this.sun.shadow.camera;
     shadowCamera.left = -SHADOW_EXTENT;
@@ -148,9 +153,15 @@ export class Environment {
     return material;
   }
 
-  /** Register a material and inject custom shader code into it. */
-  registerShadowCasterWithPatch(material, patch) {
-    patchOnBeforeCompile(material, patch);
+  /**
+   * Register a material and inject custom shader code into it.
+   *
+   * `key` is forwarded to `patchOnBeforeCompile` — see the note there about
+   * three's program cache. It is only needed when one factory installs several
+   * *different* shaders through the same function.
+   */
+  registerShadowCasterWithPatch(material, patch, key = null) {
+    patchOnBeforeCompile(material, patch, key);
     return material;
   }
 

@@ -86,6 +86,14 @@ export class App {
     this.shake = new CameraShake(this.rig);
     this.flash = new ScreenFlash();
 
+    /* ---- what the abilities are aimed at ---- */
+    // Most abilities never hear about these: the field reads the casts instead
+    // (`DummyField#applyHits`). The one exception is a cast that picks its own
+    // targets, which needs to *ask* who is standing nearby — so the field is
+    // built before the manager and handed over in its context.
+    this.dummies = new DummyField(this.environment);
+    this.scene.add(this.dummies.group);
+
     this.abilities = new AbilityManager({
       scene: this.scene,
       camera: this.camera,
@@ -96,17 +104,13 @@ export class App {
       fissures: this.fissures,
       bursts: this.bursts,
       shake: this.shake,
-      flash: this.flash
+      flash: this.flash,
+      dummies: this.dummies
     });
 
     /* ---- character ---- */
     this.character = new CharacterController(this.environment);
     this.scene.add(this.character.root);
-
-    /* ---- what the abilities are aimed at ---- */
-    // Nothing casts *at* these; they read the casts (see `DummyField#applyHits`).
-    this.dummies = new DummyField(this.environment);
-    this.scene.add(this.dummies.group);
 
     /* ---- input & targeting ---- */
     this.input = new InputManager(canvas);

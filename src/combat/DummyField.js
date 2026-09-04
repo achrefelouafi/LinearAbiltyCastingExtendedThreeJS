@@ -240,6 +240,9 @@ export class DummyField {
 
     for (const ability of abilities) {
       if (!ability.isActive) continue;
+      // A cast that aims for itself is not a volume, and guessing one for it
+      // would fell the bodies it was about to pick out one at a time.
+      if (ability.handlesOwnHits) continue;
 
       if (castShapeOf(ability.element) === CastShape.ZONE) {
         // The crown lands when the front reaches the point, not on the way.
@@ -296,6 +299,46 @@ export class DummyField {
       else _delta.normalize();
       dummy.kill(_delta.x, _delta.z, hit);
     }
+  }
+
+  /**
+   * Every body still on its feet within `radius` of a point, nearest first.
+   *
+   * The counterpart to `applyHits` for the abilities that pick their own
+   * targets: they get the list, they decide who and when, and they call
+   * `Dummy#kill` themselves. Sorted because the natural reading of "the nearby
+   * targets" is that the closest one is dealt with first, and a summon that
+   * fires at them in that order looks like it is choosing rather than
+   * scattering.
+   *
+   * `out` is written in place and returned, so a caller polling every frame
+   * allocates nothing.
+   *
+   * @param {number} x world, flat
+   * @param {number} z
+   * @param {number} radius metres
+   * @param {import('./Dummy.js').Dummy[]} out reused array, cleared here
+   */
+  findTargets(x, z, radius, out) {
+    out.length = 0;
+    if (!settings.dummies.enabled) return out;
+
+    const reach = radius + settings.dummies.bodyRadius;
+    const squared = reach * reach;
+
+    for (const slot of this.slots) {
+      const dummy = slot.dummy;
+      if (!dummy.alive) continue;
+      const dx = dummy.position.x - x;
+      const dz = dummy.position.z - z;
+      const distance = dx * dx + dz * dz;
+      if (distance > squared) continue;
+      dummy._searchDistance = distance;
+      out.push(dummy);
+    }
+
+    out.sort((a, b) => a._searchDistance - b._searchDistance);
+    return out;
   }
 
   /* ------------------------------------------------------------------ */

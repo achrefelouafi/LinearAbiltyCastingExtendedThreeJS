@@ -42,6 +42,7 @@ export class Editor {
     this._buildGlacier();
     this._buildWard();
     this._buildAcid();
+    this._buildGrowth();
     this._buildEnvironment();
     this._buildPost();
     this._buildCamera();
@@ -2065,6 +2066,436 @@ export class Editor {
 
     this.acidFolder = folder;
   }
+
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * The Arborist's Growth Chrono-Summon.
+   *
+   * Grouped exactly the way the reference sheet is: one folder per layer, in
+   * the order they appear on screen — the sigil opens, the tendrils climb, the
+   * foliage unfurls, the bloom rises, and then it fires. `The sequence` sits at
+   * the top with the cast because it is the one group that reaches into all of
+   * them: it is where the summon's *timing* lives, and timing is the only thing
+   * about this ability that cannot be judged from a still.
+   *
+   * `tendrils` and `leaves` are the performance dials, and both are live
+   * sliders on purpose — the same build has to run on a laptop and on the
+   * machine driving the projector.
+   */
+  _buildGrowth() {
+    const folder = this.gui.addFolder('❦  Arborist’s Growth');
+    const c = settings.growth;
+    const R = Editor.range;
+
+    const cast = folder.addFolder('The cast');
+    R(cast, c, 'zoneRadius', 1, 12, 0.05, 'footprint radius');
+    R(cast, c, 'range', 2, 50, 0.1, 'max range');
+    R(cast, c, 'minRange', 0, 10, 0.1, 'min range');
+    R(cast, c, 'speed', 5, 300, 1, 'seed speed');
+    R(cast, c, 'lifetime', 0.5, 20, 0.05, 'hold time');
+    R(cast, c, 'fadeTime', 0.1, 8, 0.01, 'wither time');
+    R(cast, c, 'cooldown', 0, 10, 0.05, 'cooldown');
+    Editor.castAnimation(cast, c);
+
+    const sequence = folder.addFolder('The sequence');
+    R(sequence, c, 'sigilTime', 0.05, 2, 0.01, 'sigil opens over');
+    R(sequence, c, 'vineDelay', 0, 2, 0.01, 'tendrils start at');
+    R(sequence, c, 'vineTime', 0.1, 4, 0.01, 'tendrils climb over');
+    R(sequence, c, 'vineStagger', 0, 0.85, 0.01, 'stem-to-stem lag');
+    R(sequence, c, 'bloomDelay', 0, 4, 0.01, 'bud lifts at');
+    R(sequence, c, 'bloomTime', 0.1, 4, 0.01, 'bloom opens over');
+    R(sequence, c, 'fireDelay', 0, 3, 0.01, 'first lance after');
+    R(sequence, c, 'pulseRate', 0.05, 6, 0.01, 'breath speed');
+    R(sequence, c, 'pulseDepth', 0, 2, 0.01, 'breath depth');
+
+    /* ---- layer 1 ---- */
+    const sigil = folder.addFolder('1 · The nature sigil');
+    R(sigil, c, 'sigilRailWidth', 0.005, 0.2, 0.001, 'rail width (m)');
+    R(sigil, c, 'sigilRailOuter', 0.4, 1.4, 0.005, 'outer rail');
+    R(sigil, c, 'sigilRailInner', 0.2, 1.2, 0.005, 'inner rail');
+    R(sigil, c, 'sigilRailHub', 0.02, 0.6, 0.005, 'hub');
+    R(sigil, c, 'sigilRailGlow', 0, 6, 0.01, 'rail glow');
+    R(sigil, c, 'sigilSpin', -0.2, 0.2, 0.001, 'ring spin');
+    R(sigil, c, 'sigilRunes', 6, 120, 1, 'runes');
+    R(sigil, c, 'sigilRuneBand', 0.05, 1.2, 0.005, 'band height (m)');
+    R(sigil, c, 'sigilRuneSeat', 0.3, 1.3, 0.005, 'band seat');
+    R(sigil, c, 'sigilRuneWeight', 0.01, 0.2, 0.001, 'stroke weight');
+    R(sigil, c, 'sigilRuneStrokes', 0, 1, 0.01, 'strokes kept');
+    R(sigil, c, 'sigilRuneSweep', 0, 4, 0.01, 'read head');
+    R(sigil, c, 'sigilRuneSweepSpeed', -1, 1, 0.005, 'head speed');
+    R(sigil, c, 'sigilRuneSweepWidth', 0.01, 0.5, 0.005, 'head width');
+    R(sigil, c, 'sigilRuneFlicker', 0, 1, 0.01, 'glyph flicker');
+    R(sigil, c, 'sigilRuneGlow', 0, 6, 0.01, 'rune glow');
+    R(sigil, c, 'sigilTicks', 0, 3, 0.01, 'graduations');
+    R(sigil, c, 'sigilTickCount', 4, 240, 1, 'tick count');
+    R(sigil, c, 'sigilTickWidth', 0.02, 1, 0.01, 'tick width');
+    R(sigil, c, 'sigilTickLength', 0.005, 0.3, 0.005, 'tick length');
+    R(sigil, c, 'sigilStar', 0, 4, 0.01, 'inscribed star');
+    R(sigil, c, 'sigilStarRadius', 0.1, 1.2, 0.005, 'star radius');
+    R(sigil, c, 'sigilStarWidth', 0.005, 0.15, 0.001, 'star width (m)');
+    R(sigil, c, 'sigilStarSpin', -0.2, 0.2, 0.001, 'star spin');
+    R(sigil, c, 'sigilFiligree', 0, 3, 0.01, 'vine filigree');
+    R(sigil, c, 'sigilFiligreeSeat', 0.1, 1.1, 0.005, 'filigree seat');
+    R(sigil, c, 'sigilFiligreeAmp', 0, 0.4, 0.005, 'how far it wanders');
+    R(sigil, c, 'sigilFiligreeLobes', 2, 24, 1, 'lobes');
+    R(sigil, c, 'sigilFiligreeWidth', 0.004, 0.1, 0.001, 'filigree width (m)');
+    R(sigil, c, 'sigilFiligreeSpin', -0.2, 0.2, 0.001, 'filigree spin');
+    R(sigil, c, 'sigilPool', 0, 2, 0.01, 'inner wash');
+    R(sigil, c, 'sigilPoolFalloff', 0.2, 6, 0.05, 'wash falloff');
+    R(sigil, c, 'sigilGrain', 0, 2, 0.01, 'wash grain');
+    R(sigil, c, 'sigilGrainScale', 0.2, 10, 0.05, 'grain scale');
+    R(sigil, c, 'sigilOpacity', 0, 2, 0.01, 'opacity');
+    R(sigil, c, 'sigilGlow', 0, 3, 0.01, 'glow');
+    R(sigil, c, 'sigilHeight', 0.005, 0.2, 0.002, 'hover height');
+    sigil.addColor(c, 'colorSigil').name('lines');
+    sigil.addColor(c, 'colorSigilCore').name('line core');
+    sigil.addColor(c, 'colorRune').name('runes');
+    sigil.addColor(c, 'colorSigilPool').name('inner wash');
+    sigil.addColor(c, 'colorFront').name('growth front');
+
+    /* ---- layer 2 ---- */
+    const vines = folder.addFolder('2 · The tendrils');
+    R(vines, c, 'vines', 1, 18, 1, 'tendrils (cost)');
+    R(vines, c, 'vineSeat', 0.1, 1.3, 0.005, 'where they are planted');
+    R(vines, c, 'vineSpread', 0, 3, 0.01, 'bearing scatter');
+    R(vines, c, 'vineHeight', 0.5, 10, 0.05, 'height (m)');
+    R(vines, c, 'vineHeightJitter', 0, 1.5, 0.01, 'height scatter');
+    R(vines, c, 'vineRise', 0.2, 3, 0.01, 'rise curve');
+    R(vines, c, 'vineBelly', -0.5, 1.5, 0.01, 'waist bow');
+    R(vines, c, 'vineLean', 0, 1.5, 0.01, 'tip lean in');
+    R(vines, c, 'vineTwist', -2, 2, 0.01, 'turns climbing');
+    R(vines, c, 'vineCurlAt', 0.1, 1, 0.01, 'tip curls from');
+    R(vines, c, 'vineCurlTurns', 0, 3, 0.01, 'curl turns');
+    R(vines, c, 'vineCurlPinch', 0.05, 1.5, 0.01, 'curl pinch');
+    R(vines, c, 'vineCurlLift', -0.3, 0.6, 0.005, 'curl lift');
+    R(vines, c, 'vineWander', 0, 2, 0.01, 'wander (m)');
+    R(vines, c, 'vineWanderScale', 0.2, 8, 0.05, 'wander scale');
+    R(vines, c, 'vineSway', 0, 0.5, 0.005, 'live sway (m)');
+    R(vines, c, 'vineSwaySpeed', 0, 4, 0.01, 'sway speed');
+    R(vines, c, 'vineThick', 0.01, 0.4, 0.002, 'stem radius (m)');
+    R(vines, c, 'vineTaper', 0.02, 1, 0.01, 'tip taper');
+    R(vines, c, 'vineKnots', 0, 1, 0.01, 'knots');
+    R(vines, c, 'vineKnotScale', 1, 30, 0.5, 'knot scale');
+
+    const bark = vines.addFolder('The bark');
+    R(bark, c, 'barkScale', 0.5, 20, 0.1, 'grain / metre');
+    R(bark, c, 'barkContrast', 0.2, 4, 0.01, 'grain contrast');
+    R(bark, c, 'barkFibre', 0, 2, 0.01, 'fibres');
+    R(bark, c, 'barkFibreBands', 0.5, 12, 0.1, 'fibres around');
+    R(bark, c, 'barkFibreScale', 2, 80, 0.5, 'fibres along');
+    R(bark, c, 'barkRoughness', 0.05, 1, 0.01, 'roughness');
+    R(bark, c, 'barkEnv', 0, 2, 0.01, 'env (IBL)');
+    R(bark, c, 'seamWidth', 0.01, 0.4, 0.005, 'seam width');
+    R(bark, c, 'seamBands', 0.5, 10, 0.05, 'seams around');
+    R(bark, c, 'seamScale', 0.5, 20, 0.1, 'seams along');
+    R(bark, c, 'seamFlow', -2, 2, 0.01, 'seam crawl');
+    R(bark, c, 'seamGlow', 0, 8, 0.01, 'seam glow');
+    R(bark, c, 'sapPulse', 0, 6, 0.01, 'sap pulse');
+    R(bark, c, 'sapSpeed', 0, 3, 0.01, 'sap speed');
+    R(bark, c, 'sapWidth', 0.01, 0.6, 0.005, 'sap width');
+    R(bark, c, 'frontGlow', 0, 12, 0.05, 'growing tip');
+    R(bark, c, 'frontWidth', 0.01, 0.4, 0.005, 'tip width');
+    R(bark, c, 'vineRim', 0, 3, 0.01, 'rim light');
+    R(bark, c, 'vineRimPower', 0.2, 8, 0.05, 'rim falloff');
+    R(bark, c, 'vineGlow', 0, 3, 0.01, 'glow');
+    R(bark, c, 'witherRise', 0, 1, 0.01, 'wither follows height');
+    R(bark, c, 'witherScale', 0.2, 12, 0.05, 'wither scale');
+    R(bark, c, 'witherEdge', 0.01, 0.6, 0.005, 'wither edge');
+    R(bark, c, 'witherEdgeGlow', 0, 12, 0.05, 'wither edge glow');
+    bark.addColor(c, 'colorBark').name('bark');
+    bark.addColor(c, 'colorBarkLight').name('bark light');
+    bark.addColor(c, 'colorSeam').name('seam');
+    bark.addColor(c, 'colorSeamCore').name('seam core');
+    bark.addColor(c, 'colorWither').name('wither ember');
+
+    /* ---- layer 3 ---- */
+    const leaves = folder.addFolder('3 · The foliage');
+    R(leaves, c, 'leaves', 0, 340, 1, 'leaves (cost)');
+    R(leaves, c, 'leafStart', 0, 1, 0.01, 'first leaf at');
+    R(leaves, c, 'leafEnd', 0, 1, 0.01, 'last leaf at');
+    R(leaves, c, 'leafSize', 0.05, 1.5, 0.005, 'length (m)');
+    R(leaves, c, 'leafSizeJitter', 0, 1.5, 0.01, 'size scatter');
+    R(leaves, c, 'leafAspect', 0.1, 1.2, 0.01, 'width / length');
+    R(leaves, c, 'leafBias', 0.2, 2, 0.01, 'widest point');
+    R(leaves, c, 'leafPoint', 0.2, 2, 0.01, 'how pointed');
+    R(leaves, c, 'leafPitch', -1.5, 1.5, 0.01, 'stalk pitch');
+    R(leaves, c, 'leafPitchJitter', 0, 3, 0.01, 'pitch scatter');
+    R(leaves, c, 'leafDroop', 0, 1.5, 0.01, 'droop');
+    R(leaves, c, 'leafCup', -0.6, 0.6, 0.01, 'cup');
+    R(leaves, c, 'leafOpen', 0.01, 0.5, 0.005, 'unfurl window');
+    R(leaves, c, 'leafFlutter', 0, 0.6, 0.005, 'flutter');
+    R(leaves, c, 'leafFlutterSpeed', 0, 6, 0.01, 'flutter speed');
+    R(leaves, c, 'leafVeins', 1, 20, 1, 'laterals');
+    R(leaves, c, 'leafVeinWidth', 0.01, 0.4, 0.005, 'lateral width');
+    R(leaves, c, 'leafVeinSkew', 0, 2, 0.01, 'lateral skew');
+    R(leaves, c, 'leafRibWidth', 0.01, 0.4, 0.005, 'midrib width');
+    R(leaves, c, 'leafVeinGlow', 0, 6, 0.01, 'vein glow');
+    R(leaves, c, 'leafTranslucency', 0, 4, 0.01, 'light through it');
+    R(leaves, c, 'leafSheen', 0, 2, 0.01, 'cuticle sheen');
+    R(leaves, c, 'leafMottle', 0, 1.5, 0.01, 'mottle');
+    R(leaves, c, 'leafRoughness', 0.05, 1, 0.01, 'roughness');
+    R(leaves, c, 'leafEnv', 0, 2, 0.01, 'env (IBL)');
+    R(leaves, c, 'leafGlow', 0, 3, 0.01, 'glow');
+    leaves.addColor(c, 'colorLeaf').name('blade');
+    leaves.addColor(c, 'colorLeafTip').name('tip');
+    leaves.addColor(c, 'colorLeafDeep').name('base');
+    leaves.addColor(c, 'colorLeafVein').name('veins');
+
+    /* ---- layer 4 ---- */
+    const bloom = folder.addFolder('4 · The arcane bloom');
+    R(bloom, c, 'bloomHeight', 0.5, 10, 0.05, 'height (m)');
+    R(bloom, c, 'bloomRise', 0, 4, 0.05, 'rise while opening');
+    R(bloom, c, 'bloomScale', 0.2, 4, 0.01, 'size');
+    R(bloom, c, 'bloomSpin', -0.1, 0.1, 0.001, 'whorl spin');
+    R(bloom, c, 'bloomBob', 0, 0.4, 0.005, 'breathing (m)');
+    R(bloom, c, 'bloomBobSpeed', 0, 3, 0.01, 'breathing speed');
+
+    const whorls = bloom.addFolder('The whorls');
+    R(whorls, c, 'whorlOuter', 1, 16, 1, 'outer petals');
+    R(whorls, c, 'whorlMid', 1, 14, 1, 'middle petals');
+    R(whorls, c, 'whorlInner', 1, 12, 1, 'inner petals');
+    R(whorls, c, 'petalLengthOuter', 0.1, 2, 0.01, 'outer length');
+    R(whorls, c, 'petalLengthMid', 0.1, 2, 0.01, 'middle length');
+    R(whorls, c, 'petalLengthInner', 0.1, 2, 0.01, 'inner length');
+    R(whorls, c, 'petalPitchOuter', 0, 2.4, 0.01, 'outer pitch');
+    R(whorls, c, 'petalPitchMid', 0, 2.4, 0.01, 'middle pitch');
+    R(whorls, c, 'petalPitchInner', 0, 2.4, 0.01, 'inner pitch');
+    R(whorls, c, 'petalCurveOuter', -1.5, 1.5, 0.01, 'outer curve');
+    R(whorls, c, 'petalCurveMid', -1.5, 1.5, 0.01, 'middle curve');
+    R(whorls, c, 'petalCurveInner', -1.5, 1.5, 0.01, 'inner curve');
+    R(whorls, c, 'petalWidthOuter', 0.05, 1, 0.01, 'outer width');
+    R(whorls, c, 'petalWidthMid', 0.05, 1, 0.01, 'middle width');
+    R(whorls, c, 'petalWidthInner', 0.05, 1, 0.01, 'inner width');
+    R(whorls, c, 'petalLiftOuter', -0.5, 0.5, 0.005, 'outer seat');
+    R(whorls, c, 'petalLiftMid', -0.5, 0.5, 0.005, 'middle seat');
+    R(whorls, c, 'petalLiftInner', -0.5, 0.5, 0.005, 'inner seat');
+    R(whorls, c, 'petalRoll', 0, 1.6, 0.01, 'whorl offset');
+    R(whorls, c, 'petalPitchClosed', 0, 1, 0.01, 'bud pitch');
+    R(whorls, c, 'petalBudLength', 0.05, 1, 0.01, 'bud length');
+    R(whorls, c, 'petalOpenStagger', 0, 0.6, 0.01, 'whorl-to-whorl lag');
+    R(whorls, c, 'petalWidthBias', 0.2, 2, 0.01, 'widest point');
+    R(whorls, c, 'petalWidthPoint', 0.2, 2, 0.01, 'how pointed');
+    R(whorls, c, 'petalCup', -0.6, 0.8, 0.01, 'cup');
+    R(whorls, c, 'petalTwist', -1, 1, 0.01, 'spine twist');
+    R(whorls, c, 'petalJitter', 0, 0.6, 0.01, 'angular scatter');
+
+    const petalLook = bloom.addFolder('The petals');
+    R(petalLook, c, 'petalMargin', 0, 0.8, 0.01, 'pale margin');
+    R(petalLook, c, 'petalMarginGlow', 0, 4, 0.01, 'margin glow');
+    R(petalLook, c, 'petalVeins', 1, 20, 1, 'laterals');
+    R(petalLook, c, 'petalVeinWidth', 0.01, 0.4, 0.005, 'lateral width');
+    R(petalLook, c, 'petalVeinSkew', 0, 2, 0.01, 'lateral skew');
+    R(petalLook, c, 'petalRibWidth', 0.01, 0.3, 0.005, 'midrib width');
+    R(petalLook, c, 'petalVeinGlow', 0, 6, 0.01, 'vein glow');
+    R(petalLook, c, 'petalTipGlow', 0, 4, 0.01, 'tip glow');
+    R(petalLook, c, 'petalChargeGain', 0, 6, 0.01, 'tips on charge');
+    R(petalLook, c, 'petalTranslucency', 0, 4, 0.01, 'light through it');
+    R(petalLook, c, 'petalRim', 0, 3, 0.01, 'rim light');
+    R(petalLook, c, 'petalRimPower', 0.2, 8, 0.05, 'rim falloff');
+    R(petalLook, c, 'petalShimmer', 0, 3, 0.01, 'chrono shimmer');
+    R(petalLook, c, 'petalShimmerScale', 0.1, 6, 0.05, 'shimmer scale');
+    R(petalLook, c, 'petalShimmerSpeed', -3, 3, 0.01, 'shimmer speed');
+    R(petalLook, c, 'petalRoughness', 0.05, 1, 0.01, 'roughness');
+    R(petalLook, c, 'petalEnv', 0, 2, 0.01, 'env (IBL)');
+    R(petalLook, c, 'petalGlow', 0, 3, 0.01, 'glow');
+    petalLook.addColor(c, 'colorPetalOuter').name('outer whorl');
+    petalLook.addColor(c, 'colorPetalMid').name('middle whorl');
+    petalLook.addColor(c, 'colorPetalInner').name('inner whorl');
+    petalLook.addColor(c, 'colorPetalBase').name('petal base');
+    petalLook.addColor(c, 'colorPetalMargin').name('margin');
+    petalLook.addColor(c, 'colorPetalVein').name('veins');
+
+    const core = bloom.addFolder('The core & halo');
+    R(core, c, 'coreSize', 0.05, 1.5, 0.005, 'core radius');
+    R(core, c, 'coreIntensity', 0, 8, 0.01, 'core intensity');
+    R(core, c, 'coreChargeGain', 0, 8, 0.01, 'gain on charge');
+    R(core, c, 'coreFill', 0.1, 6, 0.05, 'axis weighting');
+    R(core, c, 'coreRim', 0, 3, 0.01, 'rim');
+    R(core, c, 'coreRimPower', 0.2, 8, 0.05, 'rim falloff');
+    R(core, c, 'coreBoil', 0, 0.6, 0.005, 'silhouette boil');
+    R(core, c, 'coreBoilScale', 0.2, 8, 0.05, 'boil scale');
+    R(core, c, 'coreFilament', 0, 4, 0.01, 'filaments');
+    R(core, c, 'coreFilamentScale', 0.5, 12, 0.05, 'filament scale');
+    R(core, c, 'coreFilamentSpeed', -3, 3, 0.01, 'filament speed');
+    R(core, c, 'coreBudDim', 0, 1, 0.01, 'dimmed in the bud');
+    R(core, c, 'coreSoftFade', 0.05, 2, 0.01, 'soft fade');
+    R(core, c, 'haloSize', 0.2, 8, 0.05, 'halo radius');
+    R(core, c, 'haloGlow', 0, 3, 0.01, 'halo glow');
+    R(core, c, 'haloFalloff', 0.2, 8, 0.05, 'halo falloff');
+    R(core, c, 'haloRays', 0, 3, 0.01, 'rays');
+    R(core, c, 'haloRayCount', 2, 48, 1, 'ray count');
+    R(core, c, 'haloRaySharp', 1, 24, 0.5, 'ray sharpness');
+    R(core, c, 'haloRaySpin', -0.3, 0.3, 0.002, 'ray spin');
+    R(core, c, 'haloRingInner', 0.05, 1, 0.005, 'inner dial');
+    R(core, c, 'haloRingOuter', 0.05, 1, 0.005, 'outer dial');
+    R(core, c, 'haloRingWidth', 0.002, 0.08, 0.001, 'dial width');
+    R(core, c, 'haloRingSpin', -0.3, 0.3, 0.002, 'dial spin');
+    R(core, c, 'haloTicks', 0, 1, 0.01, 'dial graduations');
+    R(core, c, 'haloTickCount', 4, 180, 1, 'tick count');
+    R(core, c, 'haloTickWidth', 0.05, 0.95, 0.01, 'tick width');
+    core.addColor(c, 'colorCore').name('core');
+    core.addColor(c, 'colorCoreMid').name('core mid');
+    core.addColor(c, 'colorCoreEdge').name('core edge');
+    core.addColor(c, 'colorHalo').name('halo');
+    core.addColor(c, 'colorHaloRing').name('dials');
+
+    /* ---- layer 5 ---- */
+    const motes = folder.addFolder('5 · Motes, pollen & mist');
+    R(motes, c, 'moteRate', 0, 400, 1, 'motes / second');
+    R(motes, c, 'moteSize', 0.005, 0.3, 0.001, 'mote size');
+    R(motes, c, 'moteLifetime', 0.2, 8, 0.05, 'mote lifetime');
+    R(motes, c, 'moteSpeed', 0, 6, 0.01, 'mote speed');
+    R(motes, c, 'moteRise', -3, 3, 0.01, 'mote rise');
+    R(motes, c, 'moteTurbulence', 0, 3, 0.01, 'mote turbulence');
+    Editor.gradient(motes, c, 'colorMote', 'Mote gradient');
+    R(motes, c, 'pollenRate', 0, 200, 1, 'pollen / second');
+    R(motes, c, 'pollenSize', 0.01, 0.5, 0.005, 'pollen size');
+    R(motes, c, 'pollenLifetime', 0.2, 12, 0.05, 'pollen lifetime');
+    R(motes, c, 'pollenSpeed', 0, 4, 0.01, 'pollen speed');
+    R(motes, c, 'pollenRise', -2, 2, 0.01, 'pollen rise');
+    Editor.gradient(motes, c, 'colorPollen', 'Pollen gradient');
+    R(motes, c, 'mistRate', 0, 200, 1, 'mist / second');
+    R(motes, c, 'mistSize', 0.1, 5, 0.05, 'mist size');
+    R(motes, c, 'mistLifetime', 0.2, 12, 0.05, 'mist lifetime');
+    R(motes, c, 'mistSpeed', 0, 4, 0.01, 'mist speed');
+    R(motes, c, 'mistRise', -2, 2, 0.01, 'mist rise');
+    R(motes, c, 'mistSpread', 0, 2, 0.01, 'mist spread');
+    R(motes, c, 'mistOpacity', 0, 2, 0.01, 'mist opacity');
+    Editor.gradient(motes, c, 'colorMist', 'Mist gradient');
+    R(motes, c, 'driftRate', 0, 60, 0.5, 'leaves / second');
+    R(motes, c, 'driftSize', 0.02, 0.6, 0.005, 'leaf size');
+    R(motes, c, 'driftLifetime', 0.2, 12, 0.05, 'leaf lifetime');
+    R(motes, c, 'driftSpeed', 0, 6, 0.01, 'leaf speed');
+    R(motes, c, 'driftGravity', -8, 2, 0.01, 'leaf gravity');
+    R(motes, c, 'driftSpin', 0, 10, 0.05, 'leaf spin');
+    Editor.gradient(motes, c, 'colorDrift', 'Leaf gradient');
+
+    const bursts = folder.addFolder('One-shot bursts');
+    R(bursts, c, 'seedMotes', 0, 200, 1, 'motes at the hand');
+    R(bursts, c, 'creepRate', 0, 200, 1, 'motes off the seed');
+    R(bursts, c, 'trailRate', 0.2, 12, 0.05, 'marks / metre');
+    R(bursts, c, 'rootMotes', 0, 600, 1, 'motes as it roots');
+    R(bursts, c, 'rootLeaves', 0, 200, 1, 'leaves as it roots');
+    R(bursts, c, 'rootMist', 0, 200, 1, 'mist as it roots');
+    R(bursts, c, 'bloomMotes', 0, 600, 1, 'motes as it opens');
+    R(bursts, c, 'bloomPollen', 0, 400, 1, 'pollen as it opens');
+    R(bursts, c, 'bloomLeaves', 0, 200, 1, 'leaves as it opens');
+    R(bursts, c, 'witherLeaves', 0, 400, 1, 'leaves as it withers');
+    R(bursts, c, 'stainRadius', 0.1, 4, 0.01, 'ground mark radius');
+    R(bursts, c, 'stainLife', 0.2, 20, 0.05, 'ground mark life');
+    R(bursts, c, 'stainIntensity', 0, 3, 0.01, 'ground mark glow');
+    bursts.addColor(c, 'colorStain').name('mark');
+    bursts.addColor(c, 'colorStainEdge').name('mark edge');
+
+    /* ---- the lance ---- */
+    const lance = folder.addFolder('The lance & the cut');
+    lance.add(c, 'laserEnabled').name('fires at targets');
+    R(lance, c, 'laserRange', 1, 30, 0.1, 'reach (m)');
+    R(lance, c, 'laserInterval', 0.05, 4, 0.01, 'seconds between shots');
+    R(lance, c, 'laserWarmup', 0.02, 2, 0.01, 'wind-up');
+    R(lance, c, 'laserVolley', 1, 6, 1, 'targets per shot');
+    R(lance, c, 'laserLife', 0.1, 2, 0.01, 'lance lifetime');
+    R(lance, c, 'laserWidth', 0.1, 4, 0.01, 'lance width');
+    R(lance, c, 'laserAim', 0.1, 1, 0.01, 'where it lands');
+    R(lance, c, 'laserShake', 0, 0.6, 0.005, 'camera knock');
+    R(lance, c, 'laserFlash', 0, 1, 0.01, 'flash');
+    R(lance, c.laserHit, 'impulse', 0, 20, 0.1, 'throw impulse');
+    R(lance, c.laserHit, 'lift', 0, 20, 0.1, 'throw lift');
+    R(lance, c.laserHit, 'spin', 0, 5, 0.05, 'throw spin');
+    R(lance, c, 'cutLeaves', 0, 200, 1, 'leaves from the wound');
+    R(lance, c, 'cutMotes', 0, 400, 1, 'motes from the wound');
+    R(lance, c, 'cutSpeed', 0, 20, 0.1, 'wound spray speed');
+    R(lance, c, 'cutBurst', 0, 3, 0.01, 'wound shell size');
+
+    const lanceLook = lance.addFolder('How it is drawn');
+    R(lanceLook, c, 'lanceRadius', 0.005, 0.5, 0.001, 'radius (m)');
+    R(lanceLook, c, 'lanceMuzzleRadius', 0.005, 0.6, 0.001, 'muzzle radius');
+    R(lanceLook, c, 'lanceRadiusCurve', 0.05, 4, 0.01, 'radius curve');
+    R(lanceLook, c, 'lanceFlare', 0, 3, 0.01, 'flare on impact');
+    R(lanceLook, c, 'lanceFlareWidth', 0.01, 0.6, 0.005, 'flare width');
+    R(lanceLook, c, 'lanceThrob', 0, 0.8, 0.005, 'throb');
+    R(lanceLook, c, 'lanceThrobBands', 0.5, 20, 0.1, 'throb bands');
+    R(lanceLook, c, 'lanceThrobSpeed', 0, 10, 0.05, 'throb speed');
+    R(lanceLook, c, 'lanceWander', 0, 0.4, 0.005, 'wander (m)');
+    R(lanceLook, c, 'lanceWanderScale', 0.5, 16, 0.1, 'wander scale');
+    R(lanceLook, c, 'lanceWanderSpeed', 0, 8, 0.05, 'wander speed');
+    R(lanceLook, c, 'lanceStrike', 0.02, 0.6, 0.005, 'time spent arriving');
+    R(lanceLook, c, 'lanceHold', 0.05, 0.95, 0.01, 'time before it goes');
+    R(lanceLook, c, 'lanceCoreFill', 0.2, 8, 0.05, 'axis weighting');
+    R(lanceLook, c, 'lanceEdgePower', 0.2, 8, 0.05, 'sheath falloff');
+    R(lanceLook, c, 'lanceSheath', 0, 3, 0.01, 'sheath');
+    R(lanceLook, c, 'lanceCoils', 1, 6, 1, 'helices');
+    R(lanceLook, c, 'lanceCoilTurns', 0, 24, 0.1, 'helix turns');
+    R(lanceLook, c, 'lanceCoilSpeed', -6, 6, 0.05, 'helix speed');
+    R(lanceLook, c, 'lanceCoilWidth', 0.02, 1, 0.01, 'helix width');
+    R(lanceLook, c, 'lanceCoilGain', 0, 4, 0.01, 'helix glow');
+    R(lanceLook, c, 'lanceMotes', 0, 4, 0.01, 'motes inside it');
+    R(lanceLook, c, 'lanceMoteScale', 1, 40, 0.5, 'mote scale');
+    R(lanceLook, c, 'lanceMoteSpeed', 0, 10, 0.05, 'mote speed');
+    R(lanceLook, c, 'lanceHeadGlow', 0, 8, 0.05, 'head glow');
+    R(lanceLook, c, 'lanceHeadWidth', 0.005, 0.4, 0.005, 'head width');
+    R(lanceLook, c, 'lanceIntensity', 0, 8, 0.01, 'intensity');
+    R(lanceLook, c, 'lanceOpacity', 0, 2, 0.01, 'opacity');
+    R(lanceLook, c, 'lanceSoftFade', 0.05, 2, 0.01, 'soft fade');
+    lanceLook.addColor(c, 'colorLanceCore').name('core');
+    lanceLook.addColor(c, 'colorLanceInner').name('inner');
+    lanceLook.addColor(c, 'colorLanceOuter').name('sheath');
+    lanceLook.addColor(c, 'colorLanceCoil').name('helices');
+
+    const cut = lance.addFolder('The body it goes through');
+    const s = settings.slice;
+    cut.add(s, 'enabled').name('cuts in half');
+    R(cut, s, 'height', 0.1, 0.9, 0.01, 'plane height');
+    R(cut, s, 'tilt', -45, 45, 0.5, 'plane tilt (deg)');
+    R(cut, s, 'separation', 0, 0.5, 0.005, 'parting gap (m)');
+    R(cut, s, 'split', 0, 8, 0.05, 'driven apart (m/s)');
+    R(cut, s.upper, 'impulse', 0, 2, 0.01, 'top: impulse');
+    R(cut, s.upper, 'lift', 0, 2, 0.01, 'top: lift');
+    R(cut, s.upper, 'spin', 0, 2, 0.01, 'top: spin');
+    R(cut, s.lower, 'impulse', 0, 2, 0.01, 'legs: impulse');
+    R(cut, s.lower, 'lift', 0, 2, 0.01, 'legs: lift');
+    R(cut, s.lower, 'spin', 0, 2, 0.01, 'legs: spin');
+    cut.add(s.collide, 'enabled').name('halves are solid');
+    R(cut, s.collide, 'radius', 0.01, 0.4, 0.005, 'contact radius');
+    R(cut, s.collide, 'bounce', 0, 1, 0.01, 'bounce');
+    R(cut, s.collide, 'friction', 0, 1, 0.01, 'friction');
+    R(cut, s.collide, 'maxPush', 0.005, 0.3, 0.005, 'max push / frame');
+    R(cut, s, 'interiorEmissive', 0, 3, 0.01, 'interior glow');
+    R(cut, s, 'edgeEmissive', 0, 12, 0.05, 'cut edge glow');
+    R(cut, s, 'edgeWidth', 0.001, 0.1, 0.001, 'cut edge width');
+    cut.addColor(s, 'interiorColor').name('interior');
+    cut.addColor(s, 'edgeColor').name('cut edge');
+
+    /* ---- impact, camera & light ---- */
+    const impact = folder.addFolder('Impact, camera & light');
+    R(impact, c, 'muzzleSize', 0.05, 4, 0.01, 'hand flash size');
+    R(impact, c, 'muzzleIntensity', 0, 5, 0.01, 'hand flash glow');
+    R(impact, c, 'castFlash', 0, 1, 0.01, 'release flash');
+    R(impact, c, 'rootBurst', 0.1, 10, 0.05, 'root shell size');
+    R(impact, c, 'rootIntensity', 0, 5, 0.01, 'root shell glow');
+    R(impact, c, 'rootShake', 0, 1, 0.005, 'root shake');
+    R(impact, c, 'shakeDuration', 0.05, 2, 0.01, 'shake decay');
+    R(impact, c, 'bloomShake', 0, 1, 0.005, 'bloom shake');
+    R(impact, c, 'bloomFlash', 0, 2, 0.01, 'bloom flash');
+    R(impact, c, 'holdShake', 0, 0.3, 0.002, 'hold rumble');
+    R(impact, c, 'rumble', 0, 0.3, 0.002, 'seed rumble');
+    impact.addColor(c, 'colorBurstA').name('shell inner');
+    impact.addColor(c, 'colorBurstB').name('shell mid');
+    impact.addColor(c, 'colorBurstC').name('shell outer');
+    impact.addColor(c, 'colorCastFlash').name('release flash');
+    impact.addColor(c, 'colorFlash').name('bloom flash');
+
+    const light = folder.addFolder('Dynamic light');
+    R(light, c, 'lightIntensity', 0, 160, 0.5, 'light intensity');
+    R(light, c, 'lightRadius', 0.5, 60, 0.1, 'light radius');
+    R(light, c, 'lightHeight', 0, 1, 0.01, 'height toward the bloom');
+    R(light, c, 'lightPulse', 0, 1, 0.01, 'owned by the breath');
+    light.addColor(c, 'lightColor').name('light colour');
+
+    this.growthFolder = folder;
+  }
+
 
   /* ------------------------------------------------------------------ */
 

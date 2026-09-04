@@ -142,6 +142,33 @@ const ACID = WRAP(`
   <circle cx="49" cy="23" r="2.6"/>
 `);
 
+/**
+ * Growth — a bloom standing in a nest, over a circle you look into.
+ *
+ * The fifth sigil built around an ellipse, because it is the fifth far cast and
+ * that is the first thing the slot has to say. What separates it from the other
+ * four is that its contents *grow*: four tendrils rise out of the ring at
+ * uneven heights and a six-petal flower opens above them, which is the whole
+ * ability in one silhouette. Where the Ward is a closed vessel and the Acid an
+ * open one, this one is a thing standing in the circle rather than filling it.
+ */
+const GROWTH = WRAP(`
+  <ellipse cx="50" cy="84" rx="32" ry="9"/>
+  <path d="M22 82C16 67 28 59 24 46"/>
+  <path d="M78 82C84 67 72 59 76 46"/>
+  <path d="M37 85C35 74 43 68 41 58"/>
+  <path d="M63 85C65 74 57 68 59 58"/>
+  <g>
+    <path d="M50 44C44 35 44 25 50 18C56 25 56 35 50 44Z"/>
+    <path d="M50 44C44 35 44 25 50 18C56 25 56 35 50 44Z" transform="rotate(60 50 44)"/>
+    <path d="M50 44C44 35 44 25 50 18C56 25 56 35 50 44Z" transform="rotate(120 50 44)"/>
+    <path d="M50 44C44 35 44 25 50 18C56 25 56 35 50 44Z" transform="rotate(180 50 44)"/>
+    <path d="M50 44C44 35 44 25 50 18C56 25 56 35 50 44Z" transform="rotate(240 50 44)"/>
+    <path d="M50 44C44 35 44 25 50 18C56 25 56 35 50 44Z" transform="rotate(300 50 44)"/>
+  </g>
+  <circle cx="50" cy="44" r="6"/>
+`);
+
 /** Keyed by the ids in `ELEMENTS`. */
 export const ELEMENT_SIGILS = {
   ice: ICE,
@@ -151,5 +178,6 @@ export const ELEMENT_SIGILS = {
   snare: SNARE,
   glacier: GLACIER,
   ward: WARD,
-  acid: ACID
+  acid: ACID,
+  growth: GROWTH
 };

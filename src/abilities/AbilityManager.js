@@ -6,6 +6,7 @@ import { SnareAbility } from './SnareAbility.js';
 import { GlacierAbility } from './GlacierAbility.js';
 import { WardAbility } from './WardAbility.js';
 import { AcidAbility } from './AcidAbility.js';
+import { ArborBloomAbility } from './ArborBloomAbility.js';
 import { ELEMENTS } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
@@ -18,7 +19,8 @@ const ABILITY_TYPES = {
   snare: SnareAbility,
   glacier: GlacierAbility,
   ward: WardAbility,
-  acid: AcidAbility
+  acid: AcidAbility,
+  growth: ArborBloomAbility
 };
 
 const MAX_CONCURRENT = 4;

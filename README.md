@@ -2,9 +2,9 @@
 
 A skillshot VFX sandbox built with **Three.js**, **Vite** and hand-written **GLSL**.
 
-Eight abilities and two ways to aim them. Four are **line casts**: press the key to arm, a
+Nine abilities and two ways to aim them. Four are **line casts**: press the key to arm, a
 League-of-Legends style arrow appears on the ground and swings with the mouse, click to fire. The
-other four are **far casts**: the arrow is replaced by a circle with a deliberately thick boundary
+other five are **far casts**: the arrow is replaced by a circle with a deliberately thick boundary
 that follows the cursor and answers the only question a ground-targeted AoE has to answer before you
 commit — how much space is this going to take.
 
@@ -42,15 +42,25 @@ anything inside the aura is genuinely inside the cloud rather than pasted in fro
 there boiling on an envelope that never repeats, venting gouts of gas, then goes inert and sinks
 back into a stain.
 
+**N — Arborist's Growth Chrono-Summon.** A far cast, and the only one that is not a strike but a
+**summon**. A seed of green light runs across the floor to the circle; a nature sigil opens there and
+races out to the boundary; a nest of woody tendrils tears up out of it, climbing and curling and
+unfurling foliage as the growth front passes them; and an arcane bloom rises out of the middle and
+opens, whorl by whorl, over a core that is visibly winding up. Then it goes to work. It is the one
+cast in the sandbox that **picks its own targets**: it marks the nearest body still standing, charges
+on it, and fires a lance of green light — and what the lance goes through comes apart at the waist.
+
 Everything you can see is generated. There are no textures, no sprite sheets and no meshes on
 disk except the character: the crystals are procedural geometry, the bolt is a strip of ribbon
 placed entirely by a vertex shader, the meteor is an icosphere cratered and sliced by fracture
 planes on the CPU, the beam is a parametric tube drawn three times at three radii, the snare's
-whole cage is that same ribbon strip threaded along four different parametric paths, the arrow, the
-targeting circle, the rime, the burns and the molten cracks are signed-distance and noise shaders,
-and the mist, sparks, chips and glitter are GPU particles.
+whole cage is that same ribbon strip threaded along four different parametric paths, the summon's
+tendrils, its foliage and every petal on its bloom are grids of parameter space placed entirely in a
+vertex shader, the arrow, the targeting circle, the nature sigil with its generated runes, the rime,
+the burns and the molten cracks are signed-distance and noise shaders, and the mist, sparks, chips,
+leaves and glitter are GPU particles.
 
-**Every parameter is a live slider** — 1,614 of them — and they stay live while the simulation is
+**Every parameter is a live slider** — 1,983 of them — and they stay live while the simulation is
 paused. That is the point of the project: freeze a frame mid-eruption, mid-strike or mid-burn with
 **P**, then reshape the silhouette, the palette and the timing against a still image.
 
@@ -124,6 +134,7 @@ shown as a visible sky. The stage keeps its flat dark backdrop.
 | **X** (or **6**) | Arm Glacial Crown — a far cast |
 | **B** (or **7**) | Arm Volcanic Horror Ward — a far cast |
 | **Z** (or **8**) | Arm Caustic Bloom — a far cast, and a poison acid aura |
+| **N** (or **9**) | Arm the Arborist's Growth Chrono-Summon — a far cast that picks its own targets |
 | **Move the mouse** | Swing the aim arrow, or move the far-cast circle |
 | **Left click** | Cast along the arrow, or drop the circle where it is |
 | **Esc** / **right click** | Cancel an armed cast |
@@ -464,6 +475,84 @@ never lands twice on the same rhythm. It is evaluated once per frame and handed 
 the light, the emitters and the camera; when a surge crosses `boilThreshold` on the way up the aura
 **vents** — a gout of gas off the whole pool, a ring pushed across it and a knock on the camera.
 Set `boilDepth` to zero and the whole thing flatlines, every pass at once.
+
+### The growth
+
+The Arborist's Growth Chrono-Summon is the only ability in the set that is not a *strike*. Everything
+else in the sandbox reaches: it travels down a line, it lands, and `DummyField` reads the volume it
+covered and fells whatever was standing in it. A summon does not reach. It stands there and picks —
+so this one answers `handlesOwnHits`, the field leaves it alone, and it asks who is nearby, marks
+one, charges on it, and fires. The cut is not an effect layered on top of the kill; it *is* the kill.
+
+**The tendrils and their foliage are one shape.** A leaf is not decoration scattered near a stem, it
+is *clipped to* one. The tube and the blades include the same `vinePoint` / `vineFrame` /
+`vineRadius` block and are handed the same uniform boxes by identity, so a leaf resolves the exact
+stem position the tube resolved, on the same frame, from the same numbers. Drag `curl turns` while a
+summon is standing and three hundred leaves curl with the wood. The alternative is to bake the stems
+— and lose the live controls — or to read geometry back off the GPU, and lose the frame.
+
+There is no path buffer and no CPU pass at all. `vinePoint(vine, t)` is analytic: a bearing, a radius
+that bows out at the waist and draws back in under the bloom, a rise curve, a twist, and a spiral
+that tightens over the last third — which is the one term that says *grown* rather than *extruded*.
+The frame that rides it takes its reference axis from the stem's own outward radial rather than from
+world up, because the usual trick flips somewhere up a tendril that passes through vertical, and a
+frame that flips between two rows of a tube twists every quad between them into a bow tie.
+
+**The bloom opens by animating one angle.** A petal is a bent, cupped, twisted sheet placed on an arc
+— `p(u) = centre + (out·sin a + up·cos a)·(len·u)` with `a = pitch + curve·u` — so a petal that starts
+at 20° and curves 90° is standing at its base and folded back at its tip, which is what an open
+flower actually does. `uOpen` runs 0 → 1 and interpolates every petal's pitch from the bud's to its
+whorl's, outer whorls leading. There is no second pose and nothing is blended. The read of a flower
+is entirely in how the whorls *stack*, and that stack is three vec3s.
+
+**These are lit materials, not additive shaders**, which is the split that separates this ability
+from every other one here. Fire and lightning *are* light; wood is matter, and matter that does not
+sit in the sun, take a shadow and occlude what is behind it reads as a decal wrapped around the scene
+however good its silhouette is. So the tendrils, the foliage and the petals are
+`MeshStandardMaterial` with their vertex stage replaced: three's shading model, our geometry. Two
+things fall out of that and both are load-bearing — the shadow pass needs the *same* vertex stage
+(each material hands back a matching `MeshDepthMaterial` for the mesh's `customDepthMaterial`), and
+the model matrix must stay identity, because the vertex stage writes world positions.
+
+They also need a layer of their own. `LAYER.SHAPED` exists because the depth prepass draws the whole
+world layer with one `overrideMaterial`, which would rasterise the raw parameter buffer — a
+metre-wide sheet at the origin — straight into the soft-particle depth buffer. The shadow map is the
+one pass where three honours `customDepthMaterial`, so the summon casts properly and stays out of the
+prepass.
+
+There is a second three.js footgun in the same neighbourhood, and it cost a debugging session worth
+recording: three keys its **program cache** off `customProgramCacheKey()`, whose default is
+`onBeforeCompile.toString()` — and `patchOnBeforeCompile` installs a function with the *same* source
+text on every material it touches. Three materials that patch the same base with the same parameters
+therefore shared one compiled program, and the second and third silently rendered with the first
+one's shader. Nothing errors; the petals simply came out as more tendrils. `patchOnBeforeCompile` now
+folds the patch's own source into the key, which fixes it for every caller in the project.
+
+**The sigil is drawn in metres from its own centre**, not in quad space: drag `footprint radius`
+while a summon is standing and the mark re-scales with its strokes the same physical width and the
+same number of runes per metre of arc. The runes are *generated* — every cell hashes its own subset
+out of a nine-stroke alphabet, so the ring carries genuinely non-repeating script and moving `runes`
+re-cuts all of them. Fine detail is faded by the world-space pixel footprint and every band's width
+is floored at it with the brightness scaled back to match, which is what stops a floor full of thin
+bright rings turning into a bolt of white speckle across the far half of the stage.
+
+**The lance is one draw call for the whole volley.** Every shot is an instance of the same tube
+reading its two endpoints and its own clock out of a small uniform array, so four bodies going down
+at once costs what one does. It does not fade up: it arrives, in the first tenth of its life, as a
+point that reaches the target — and the cut lands on the frame its *head* gets there rather than on
+the frame it was fired. Fifty milliseconds apart, and worth every one of them.
+
+**The cut itself** is one plane and one clone (`combat/Dummy.js`). The body's mesh is duplicated,
+each copy is told which side of the plane it keeps with a `discard`, and each gets its own solver
+seeded with only the joints that half actually owns — leave the legs in the torso's solver and they
+land on the floor holding an invisible pelvis a metre in the air. Because the material has been
+double-sided since birth the far wall of the shell is already being rasterised, so painting *that* as
+the interior is the whole of the cross-section: no cap geometry, no re-tessellation, right from every
+angle for free. The plane lives in the geometry's **bind** space — the one space no bone can move —
+so a cut measured at the waist stays at the waist however far the corpse folds. The two halves are
+then made solid to each other (`collideRagdolls`), because two solvers that know nothing of each
+other let the torso fall straight through the legs it was cut off.
+
 
 ### Adding another ability
 

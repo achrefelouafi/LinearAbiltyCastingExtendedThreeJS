@@ -99,6 +99,19 @@ export class Ability {
     return 0;
   }
 
+  /**
+   * Whether this ability decides for itself what it hits.
+   *
+   * `DummyField` reads the line every cast publishes and turns it into a kill
+   * volume, which is right for everything that simply *reaches*. It is wrong
+   * for a cast that picks its targets — the Chrono-Summon fires on one body at
+   * a time and has to be the thing that says which, and when. Those abilities
+   * answer true here and the field leaves them alone.
+   */
+  get handlesOwnHits() {
+    return false;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Subclass hooks                                                      */
   /* ------------------------------------------------------------------ */
