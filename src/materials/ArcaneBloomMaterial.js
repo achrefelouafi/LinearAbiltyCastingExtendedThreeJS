@@ -44,6 +44,16 @@ import { patchOnBeforeCompile } from '../utils/shaderPatch.js';
  * petal's pitch is interpolated from the bud's to its whorl's, outer whorls
  * leading (`uOpenStagger`). There is no second pose and nothing is blended.
  *
+ * ## And the whole thing turns on one vector
+ *
+ * That arc is written in the flower's own frame, not the world's, so `uFacing`
+ * — the axis the whorls are dealt around — is all it takes to stand the bloom
+ * up. Vertical is the flat pose (a rosette seen from above, which is what the
+ * geometry gives you if you never think about it); horizontal is a flower
+ * standing and looking at something. The ability swings it onto whatever it is
+ * about to fire at, and because the two in-plane axes are rebuilt from it per
+ * vertex the turn is one continuous rotation rather than a pose blend.
+ *
  * ## Why the petals are lit and the core is not
  *
  * The same split the tendrils make, for the same reason. A petal is a *surface*:
@@ -72,6 +82,15 @@ export function createBloomState() {
     uCentre: { value: new Vector3() },
     uScale: { value: 1 },
     uSeed: { value: 0 },
+    /**
+     * The flower's own axis, world space — the way it is *looking*.
+     *
+     * The whorls are laid out in the plane across this, so it is the one
+     * uniform that decides whether the bloom lies open at the sky or stands up
+     * and faces a body. `(0,1,0)` is the flat pose; anything horizontal is the
+     * standing one. The ability swings it onto whatever it is about to shoot.
+     */
+    uFacing: { value: new Vector3(0, 0, 1) },
     /** 0 a closed bud, 1 fully open. */
     uOpen: { value: 0 },
     /** The pump every glowing term rides — see `ArborBloomAbility#_pulse`. */
@@ -92,6 +111,7 @@ const PETAL_VERTEX_DECL = /* glsl */ `
   uniform float uSeed;
   uniform float uOpen;
   uniform float uTime;
+  uniform vec3  uFacing;
 
   uniform vec3  uWhorlCount;
   uniform vec3  uWhorlLength;
@@ -185,9 +205,23 @@ const PETAL_VERTEX_DECL = /* glsl */ `
     float spin = uSpin * uTime * BTAU * (mod(whorl, 2.0) < 0.5 ? 1.0 : -1.0);
     float angle = (within / count) * BTAU + roll + spin + (seed - 0.5) * uJitter;
 
-    vec3 outDir = vec3(cos(angle), 0.0, sin(angle));
-    vec3 upDir = vec3(0.0, 1.0, 0.0);
-    vec3 sideDir = vec3(-sin(angle), 0.0, cos(angle));
+    // The frame the whorls are dealt around. uFacing is the flower's axis and
+    // the two others span its face: with the axis vertical this is the old flat
+    // pose exactly (petals in the ground plane), and with it horizontal the
+    // bloom is standing and looking down the axis. Derived here rather than
+    // handed in because it has to stay a single continuous rotation as the
+    // ability swings the axis onto a new body — three uniforms drifting out of
+    // orthogonality mid-turn would shear the petals.
+    vec3 upDir = normalize(uFacing);
+    vec3 planeX = cross(vec3(0.0, 1.0, 0.0), upDir);
+    float planeLen = length(planeX);
+    // Straight up or straight down: no world-up to take a bearing from, so fall
+    // back to +X, which reproduces the original pose.
+    planeX = planeLen > 1e-3 ? planeX / planeLen : vec3(1.0, 0.0, 0.0);
+    vec3 planeY = normalize(cross(upDir, planeX));
+
+    vec3 outDir = planeX * cos(angle) + planeY * sin(angle);
+    vec3 sideDir = planeY * cos(angle) - planeX * sin(angle);
 
     /* ---- how far open ---- */
     // Outer first. A bloom whose whorls open together is a shape scaling up;

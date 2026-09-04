@@ -2253,6 +2253,9 @@ export class Editor {
     R(bloom, c, 'bloomSpin', -0.1, 0.1, 0.001, 'whorl spin');
     R(bloom, c, 'bloomBob', 0, 0.4, 0.005, 'breathing (m)');
     R(bloom, c, 'bloomBobSpeed', 0, 3, 0.01, 'breathing speed');
+    R(bloom, c, 'bloomStand', 0, 1, 0.01, 'standing (0 flat)');
+    R(bloom, c, 'bloomAimPitch', 0, 1, 0.01, 'tip onto target');
+    R(bloom, c, 'bloomTurnRate', 0.5, 20, 0.1, 'turn rate (rad/s)');
 
     const whorls = bloom.addFolder('The whorls');
     R(whorls, c, 'whorlOuter', 1, 16, 1, 'outer petals');
@@ -2311,6 +2314,7 @@ export class Editor {
 
     const core = bloom.addFolder('The core & halo');
     R(core, c, 'coreSize', 0.05, 1.5, 0.005, 'core radius');
+    R(core, c, 'coreSeat', -0.3, 1, 0.01, 'seat up the axis');
     R(core, c, 'coreIntensity', 0, 8, 0.01, 'core intensity');
     R(core, c, 'coreChargeGain', 0, 8, 0.01, 'gain on charge');
     R(core, c, 'coreFill', 0.1, 6, 0.05, 'axis weighting');

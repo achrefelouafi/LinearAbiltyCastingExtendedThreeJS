@@ -45,6 +45,7 @@ const _pos = new Vector3();
 const _centre = new Vector3();
 const _bloom = new Vector3();
 const _dir = new Vector3();
+const _aimAt = new Vector3();
 
 /**
  * The breath, 0..1 — the envelope every glowing pass is driven off.
@@ -236,6 +237,11 @@ export class ArborBloomAbility extends Ability {
     this._mark = null;
     /** Reused by `DummyField#findTargets`, so polling allocates nothing. */
     this._targets = [];
+    /** Which way the flower is looking, and where it is swinging to. */
+    this._facing = new Vector3(0, 0, 1);
+    this._facingTarget = new Vector3(0, 0, 1);
+    /** Where the charge sits — the point a lance and its gout leave from. */
+    this._lightAt = new Vector3();
 
     /** Scratch handed to the sigil each frame. One object, reused. */
     this._sigilState = {
@@ -449,6 +455,111 @@ export class ArborBloomAbility extends Ability {
     return out;
   }
 
+  /**
+   * Where the charge sits: up the flower's own axis from the petal bases,
+   * in the throat of the inner whorl.
+   *
+   * The whorls all bend onto the lily's side, so the bases are the one part of
+   * the bloom with nothing in front of them. A core left there is buried under
+   * the cup from the front and blazes out of the back unobstructed — the lamp
+   * on the wrong face. Seated up the axis the petals close over it, the glow
+   * comes out through the gold, and what the back shows is a lit shell. The
+   * lance and its gout leave from here too, so the shot comes out of the light
+   * rather than out of the stalk.
+   */
+  _lightPoint(out, scale) {
+    return out
+      .copy(this._bloomState.uCentre.value)
+      .addScaledVector(this._facing, settings.growth.coreSeat * scale);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Where the flower is looking                                         */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Where up a body a lance lands, and therefore what the bloom looks at.
+   *
+   * Shared by the aim and the shot on purpose: the flower has to be facing the
+   * exact point the lance will leave from, or the light comes off the back of
+   * a petal.
+   */
+  _aimPoint(out, dummy) {
+    return out.set(
+      dummy.position.x,
+      settings.dummies.height * saturate(settings.growth.laserAim),
+      dummy.position.z
+    );
+  }
+
+  /**
+   * The axis to deal the whorls around, to face `aim` — or, with no `aim`, to
+   * face back down the cast at the caster.
+   *
+   * **Idle is the caster, not the heading.** A summon with nothing to shoot,
+   * left looking the way it was thrown, stands there showing the camera the
+   * back of the flower: broad petal undersides, the core a blur behind them,
+   * and none of the structure the layer is for. The player is the audience, so
+   * with no body to pick it comes round and presents itself, and turns off that
+   * onto whatever it fires at.
+   *
+   * Two dials sit on top of the heading. `bloomAimPitch` is how far the flower
+   * will tip onto a body's *height*: a summon hanging three metres up, aiming
+   * fully at a target at its own feet, is a flower looking at the floor, and
+   * the silhouette this whole layer exists for goes with it. `bloomStand` then
+   * blends the finished axis back toward world up, which is the flat pose the
+   * geometry falls into on its own — 1 stands the bloom up, 0 lays it open at
+   * the sky.
+   */
+  _facingFor(out, aim) {
+    const c = settings.growth;
+    const centre = this._bloomState.uCentre.value;
+
+    if (aim) {
+      out.set(
+        aim.x - centre.x,
+        (aim.y - centre.y) * saturate(c.bloomAimPitch),
+        aim.z - centre.z
+      );
+    } else {
+      out.copy(this.direction).setY(0).negate();
+    }
+    if (out.lengthSq() < 1e-8) out.copy(this.direction).setY(0).negate();
+    if (out.lengthSq() < 1e-8) out.set(0, 0, -1);
+    out.normalize();
+
+    const stand = saturate(c.bloomStand);
+    out.set(out.x * stand, lerp(1, out.y, stand), out.z * stand);
+    return out.lengthSq() > 1e-8 ? out.normalize() : out.set(0, 1, 0);
+  }
+
+  /**
+   * Swing the flower toward whatever it has settled on.
+   *
+   * An exponential approach, so it is frame-rate independent and eases *into*
+   * the heading. A bloom that snaps onto a body is a turret again; one that
+   * takes a moment to come round reads as the thing deciding, which is the same
+   * reason the core spends `laserWarmup` winding up before a lance leaves.
+   */
+  _turnBloom(dt) {
+    const target = this._facingTarget;
+    if (dt <= 0 || target.lengthSq() < 1e-8) return;
+
+    const rate = Math.max(0, settings.growth.bloomTurnRate);
+    const k = rate > 0 ? 1 - Math.exp(-rate * dt) : 1;
+
+    // Dead behind it, and a straight lerp would pass through zero length on the
+    // way. Nudged off the axis so the turn has a plane to happen in.
+    if (this._facing.dot(target) < -0.9995) {
+      this._facing.x += 0.02;
+      this._facing.normalize();
+    }
+
+    this._facing.lerp(target, k);
+    if (this._facing.lengthSq() < 1e-8) this._facing.copy(target);
+    else this._facing.normalize();
+  }
+
   /* ------------------------------------------------------------------ */
   /* Casting                                                             */
   /* ------------------------------------------------------------------ */
@@ -478,6 +589,11 @@ export class ArborBloomAbility extends Ability {
     this._pulse = 0;
     // The one thing a cast captures. Everything else is resolved per frame.
     this._seed = Math.random() * 100;
+
+    // It comes up looking the way the cast was thrown, and turns off that onto
+    // the first body it picks.
+    this._facingFor(this._facingTarget, null);
+    this._facing.copy(this._facingTarget);
 
     for (const slot of this._lanceSlots) this._retireLance(slot);
 
@@ -561,6 +677,7 @@ export class ArborBloomAbility extends Ability {
     state.uOpen.value = open;
     state.uCharge.value = this._charge;
     state.uFade.value = fade;
+    state.uFacing.value.copy(this._facing);
 
     this.petalMaterial.userData.sync();
     this.coreMaterial.userData.sync();
@@ -572,7 +689,8 @@ export class ArborBloomAbility extends Ability {
     this.petalGeometry.instanceCount = Math.min(MAX_PETALS, petals);
     this.petals.visible = !travelling && lift > 0.002;
 
-    _bloom.copy(state.uCentre.value);
+    this._lightPoint(this._lightAt, scale);
+    _bloom.copy(this._lightAt);
     const coreRadius = Math.max(0.02, c.coreSize * scale);
     this.core.visible = this.petals.visible;
     this.core.position.copy(_bloom);
@@ -670,10 +788,18 @@ export class ArborBloomAbility extends Ability {
    */
   _aim(dt, fade) {
     const c = settings.growth;
+
+    // Before anything else, and on every path out of here: the flower keeps
+    // coming round to its heading whether or not it is allowed to shoot, so it
+    // is still looking at the last body it fired at while it waits out the
+    // interval, and it does not un-aim itself as the summon withers.
+    this._turnBloom(dt);
+
     if (!this._armed || fade < 0.5) {
       this._mark = null;
       this._chargeTimer = 0;
       this._charge = Math.max(0, this._charge - dt * 3.2);
+      this._facingFor(this._facingTarget, null);
       return;
     }
 
@@ -697,9 +823,20 @@ export class ArborBloomAbility extends Ability {
       this._chargeTimer = 0;
       if (!this._mark) {
         this._charge = Math.max(0, this._charge - dt * 2.4);
+        // Nothing left standing in reach: it comes back round to the caster
+        // rather than spending the rest of its life staring at a corpse. Only
+        // on an *empty* sweep — between the shots of a live exchange the
+        // heading is held, or the flower would wobble on every interval.
+        this._facingFor(this._facingTarget, null);
         return;
       }
     }
+
+    // It looks at what it is about to shoot, for the whole wind-up. This is
+    // most of what the warmup is *for*: the turn is the only warning a body
+    // gets, and it is what puts the flower's face — not its back — behind the
+    // lance when one leaves.
+    this._facingFor(this._facingTarget, this._aimPoint(_aimAt, this._mark));
 
     this._chargeTimer += dt;
     const warmup = Math.max(0.01, c.laserWarmup);
@@ -730,12 +867,8 @@ export class ArborBloomAbility extends Ability {
     const slot = this._freeLance();
     if (!slot) return;
 
-    slot.from.copy(this._bloomState.uCentre.value);
-    slot.to.set(
-      dummy.position.x,
-      settings.dummies.height * saturate(c.laserAim),
-      dummy.position.z
-    );
+    slot.from.copy(this._lightAt);
+    this._aimPoint(slot.to, dummy);
 
     // The heading of the shot, flat. This is what the cut plane is tipped along
     // and the direction the two halves are driven apart on.
@@ -844,9 +977,11 @@ export class ArborBloomAbility extends Ability {
     const c = settings.growth;
     const g = settings.global;
 
-    _emit.position = _bloom.copy(this._bloomState.uCentre.value);
+    _emit.position = _bloom.copy(this._lightAt);
     _emit.radius = 0.28;
-    _emit.direction = _dir.set(0, 1, 0);
+    // Out of the flower's face, lifted a little: a gout that leaves along the
+    // shot is the discharge, one that goes straight up is a fountain.
+    _emit.direction = _dir.copy(this._facing).setY(this._facing.y + 0.3).normalize();
     _emit.speed = c.moteSpeed * 2.6;
     _emit.speedVariance = 0.9;
     _emit.spread = 1.0;
@@ -1246,7 +1381,7 @@ export class ArborBloomAbility extends Ability {
     const g = settings.global;
     const time = frame.uTime.value;
 
-    _bloom.copy(this._bloomState.uCentre.value);
+    _bloom.copy(this._lightAt);
 
     this.ctx.bursts.spawn(BurstMode.AIR, _bloom, {
       radius: 0.3,

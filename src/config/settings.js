@@ -2748,6 +2748,21 @@ export const settings = {
     bloomBob: 0.055, // metres it breathes up and down
     bloomBobSpeed: 0.6,
 
+    /**
+     * Which way the flower is looking.
+     *
+     * A bloom whose whorls are dealt around the world's up axis lies open at
+     * the sky, and from the camera you are looking at the back of it. `stand`
+     * tips that axis over onto the heading of whatever the summon is about to
+     * shoot: at 1 the flower is upright and facing the body, at 0 it lies flat
+     * as before, and anything between is a dial. `aimPitch` is how much of the
+     * *height* difference to a body it will tip onto — 0 keeps it dead upright
+     * however low the target is, 1 points it straight down the lance.
+     */
+    bloomStand: 1.0, // 0 flat, 1 standing and facing the mark
+    bloomAimPitch: 0.45, // how far it tips onto a target's height
+    bloomTurnRate: 7.0, // radians/second it swings onto a new one
+
     whorlOuter: 11, // petals in each whorl (capacity is 30 across all three)
     whorlMid: 9,
     whorlInner: 7,
@@ -2755,17 +2770,25 @@ export const settings = {
     petalLengthMid: 0.72,
     petalLengthInner: 0.44,
     /**
-     * Radians from straight up, once open.
+     * Radians off the bloom's own axis, once open.
      *
      * The read of a flower is entirely in this stack: the outer whorl lying
      * almost flat, the middle one half raised, the inner one still cupped
      * around the core. Flatten them all to the same angle and it is a rosette.
+     *
+     * **`pitch + curve` is where the blade's tip ends up, and π/2 is a wall.**
+     * Under it the whorl stays on the core's side and bends the way the inner
+     * ones do; over it the blade crosses behind the core and arches away, so
+     * the flower grows a back — a shell of big leaves bending against the gold
+     * cup instead of with it, and from the front you are looking at their
+     * undersides. The outer whorl used to sit at 1.84 rad (105°) and that back
+     * was the whole problem: every whorl now lands short of 1.5.
      */
-    petalPitchOuter: 1.2,
-    petalPitchMid: 0.87,
+    petalPitchOuter: 0.9,
+    petalPitchMid: 0.72,
     petalPitchInner: 0.52,
-    petalCurveOuter: 0.64, // extra radians the blade keeps turning as it runs out
-    petalCurveMid: 0.5,
+    petalCurveOuter: 0.55, // extra radians the blade keeps turning as it runs out
+    petalCurveMid: 0.52,
     petalCurveInner: 0.32,
     petalWidthOuter: 0.46, // half-width, × length
     petalWidthMid: 0.48,
@@ -2804,6 +2827,18 @@ export const settings = {
 
     /* --- the core --- */
     coreSize: 0.26, // radius, metres, × bloom scale
+    /**
+     * How far up the flower's axis the charge sits, × bloom scale.
+     *
+     * Every whorl bends onto the lily's side, which leaves the petal bases as
+     * the one part of the bloom with nothing in front of them — a charge left
+     * down there is buried under the cup from the front and blazes out of the
+     * back unobstructed, which is the wrong way round. Seated up the axis it
+     * sits in the throat of the inner whorl instead: the light comes out
+     * through the gold, and the back is a lit shell rather than the lamp.
+     * Past about 0.4 it clears the mouth of the cup and floats free.
+     */
+    coreSeat: 0.34,
     coreIntensity: 0.7,
     coreChargeGain: 2.6, // how much brighter it runs as a lance winds up
     coreFill: 1.7, // how hard it is weighted toward the axis
