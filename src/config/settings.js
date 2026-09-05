@@ -3955,6 +3955,376 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
+  /* Ink — the Sumi Tide                                                 */
+  /* ------------------------------------------------------------------ */
+  /**
+   * A brush-painted flood: white paper soaks into the stone, black ink bleeds
+   * across it, a wall of water stands up around the boundary, and everything
+   * inside the circle is wound into a vortex and pulled under.
+   *
+   * The block is ordered the way the effect is built, one group per pass —
+   * paper, ink, water, throat, brush ripples, splatter, the crown, the column,
+   * the suspended ink, the refraction, the particles, and the grip that takes
+   * hold of the bodies. Every one of them is resolved per frame, so dragging
+   * `zoneRadius` re-floods a tide that is already standing.
+   */
+  ink: {
+    /* --- the cast --- */
+    range: 22.0, // maximum cast distance, metres
+    minRange: 0.0, // it is a zone: dropping it on your own feet is allowed
+    zoneRadius: 5.0, // the footprint — what the circle indicator measures out
+    speed: 74.0, // how fast the stroke runs to the point, metres/second
+    floodTime: 0.55, // seconds the water takes to fill the circle
+    drainTime: 1.15, // seconds after the flood before the throat opens
+    lifetime: 5.4, // seconds it stands
+    fadeTime: 2.0, // seconds the water takes to drain back
+    cooldown: 2.8,
+    castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
+
+    /* --- the swell: the irregular pulse every pass is driven off --- */
+    /**
+     * Water does not spike the way a chemical reaction does — it *heaves*. So
+     * unlike the Caustic Bloom's boil this envelope is deliberately smooth: two
+     * incommensurate sines, barely sharpened, which gives a long swell with no
+     * period inside a cast. Crossing `tideThreshold` on the way up launches a
+     * ripple, so the rings on the surface are not free-running — they are the
+     * visible half of the same envelope that is turning the vortex.
+     */
+    swellRate: 1.15, // how fast the envelope runs
+    swellSharp: 1.35, // >1 leans it toward the troughs
+    swellDepth: 0.75, // how hard it modulates everything, 0 = flat
+    tideThreshold: 0.62, // the level a swell has to cross to launch a ripple
+    tideRipple: 0.9, // brightness of the ring it throws
+    tideSpray: 34, // droplets thrown off the crown when it heaves
+    tideShake: 0.022, // the knock on the camera
+
+    /* --- where the stroke leaves the caster --- */
+    handHeight: 1.12, // metres above the floor
+    handForward: 0.62, // metres in front of the caster
+    handSide: -0.14, // metres to the side (+ follows `Ability#side`)
+    trailInk: 46, // ink flecks per metre of the stroke
+    trailSpray: 18, // and the spray coming off it
+
+    /* --- the paper wash --- */
+    /**
+     * The sheet the whole thing is painted on, and the one pass that has to
+     * land *before* anything else can read as ink: black on granite is a scorch
+     * mark, black on paper is a brush stroke, and the difference between those
+     * two readings is this wash and nothing else.
+     *
+     * Its edge is deckled rather than circular and it is eaten by the paper's
+     * own tooth, so the sheet looks torn and laid down rather than projected.
+     */
+    washRadius: 1.24, // how far past the footprint the paper reaches, × radius
+    washOpacity: 0.7,
+    washBleed: 0.34, // metres the edge feathers over
+    washDeckle: 0.42, // how far the outline wanders — a torn edge
+    washDeckleScale: 2.6,
+    washTooth: 0.42, // the paper grain eating into the wash
+    washToothScale: 5.5, // tooth features per metre
+    washFibre: 0.3, // long fibres pressed into the sheet
+    washFibreScale: 1.8,
+    washDry: 0.55, // how much of it survives once the water has gone
+
+    /* --- the ink --- */
+    /**
+     * Watercolour, not paint. Three things carry it and they are all physical:
+     * the boundary grows *dendritic* fingers where pigment wicks along the wet
+     * fibres; the drying rim is **darker** than the middle, because pigment is
+     * carried outward and stranded there; and the pigment **granulates**,
+     * settling into the tooth of the paper as a fine mottle. Take those three
+     * out and what is left is a black disc with a soft edge.
+     */
+    inkRadius: 1.0, // × footprint
+    inkOpacity: 1.0,
+    inkFeather: 0.42, // metres the edge feathers over
+    inkTendril: 0.55, // how far the wicking fingers reach
+    inkTendrilScale: 1.9, // fingers per radian of bearing
+    inkEdge: 0.85, // the dark rim stranded at the drying edge
+    inkEdgeWidth: 0.5, // metres it is wide
+    granulation: 0.7, // pigment settling into the tooth
+    granulationScale: 6.5, // per metre
+    // Pigment sits under the skin of the water, where the vortex is tighter, so
+    // the veil is wound harder than the waves above it. At 1 the two turn
+    // together and the pool flattens back into one rotating plate.
+    inkSwirl: 1.6, // × the surface's winding
+    inkVeil: 1.15, // ink suspended in the water, drawn as spiral filaments
+    inkVeilScale: 0.55, // features per metre
+    inkVeilSharp: 3.0, // >1 tears the veil into separate strands
+
+    /* --- the water standing in it --- */
+    waterOpacity: 0.86,
+    waterDepth: 0.9, // how fast it darkens toward the middle
+    ripple: 0.03, // amplitude of the surface waves, metres
+    rippleScale: 1.15, // waves per metre
+    rippleSpeed: 0.9,
+    chop: 0.28, // the fine chop laid over them
+    chopScale: 3.2,
+    sheen: 0.3, // the specular lobe — what says *water* before anything else
+    gloss: 0.7, // 0 = broad and dull, 1 = a tight highlight
+    caustic: 0.22, // interference on the surface
+    causticScale: 2.4,
+    causticSpeed: 0.55,
+    rimFoam: 0.55, // foam gathered against the boundary
+    rimFoamWidth: 0.4, // metres
+
+    /* --- the throat --- */
+    /**
+     * The hole the vortex opens in the middle, and the only pass here that is
+     * about the *mechanic* rather than the look: it opens on the same clock the
+     * grip starts pulling on, so the thing the bodies are being dragged into is
+     * visibly there before they reach it.
+     */
+    throatSize: 0.3, // × footprint
+    throatDepth: 0.9, // how black it goes
+    throatLip: 0.28, // the sheared bright lip around it, metres
+    throatSpin: 1.5, // revolutions/second the whole vortex turns
+
+    /* --- the brush ripples --- */
+    /**
+     * Sumi-e rings, not water rings: a stroke has a loaded start, a dry-brush
+     * middle where the bristles skip off the tooth of the paper, and a tapered
+     * lift at the end. `ringBristle` is the whole difference — a ring with no
+     * skips in it is a circle, and a circle reads as UI.
+     */
+    rings: 6, // how many are in flight at once
+    ringSpeed: 0.42, // radii per second
+    ringWidth: 0.17, // metres, at birth
+    ringTaper: 0.55, // how much thinner it gets as it travels
+    ringInk: 1.0, // how black the stroke is
+    ringFoam: 0.55, // the white lifted along its leading edge
+    ringBristle: 0.7, // dry-brush skips
+    ringBristleScale: 9.0, // skips per radian
+    ringWobble: 0.09, // how far the radius wanders, × radius
+    ringWobbleScale: 2.4,
+    ringReach: 1.7, // how far out they run, × footprint
+
+    /* --- the splatter --- */
+    /**
+     * Flecks thrown clear of the stroke and dried on the paper. Each is drawn
+     * out along its own bearing with a tail and a satellite, which is what a
+     * drop of ink off a moving brush actually leaves — a round dot reads as a
+     * particle that stopped.
+     */
+    splatter: 0.4, // fraction of cells that carry a fleck
+    splatterScale: 0.95, // cells per metre
+    splatterSize: 0.5, // × cell
+    splatterTail: 2.2, // how far a fleck is drawn out along its bearing
+    splatterSpread: 1.1, // how far past the wash they are thrown, × radius
+
+    /* --- rendering the floor --- */
+    poolHeight: 0.024, // hover distance above the floor, metres
+    poolOpacity: 1.0,
+    colorPaper: '#ded8c9', // the sheet
+    colorPaperShade: '#8f8a7c', // its tooth, in shadow
+    colorInk: '#05070b', // the pigment
+    colorInkWash: '#101f26', // ink thinned into the water
+    colorWater: '#134b55',
+    colorWaterDeep: '#04141b',
+    colorFoam: '#e6f4f1',
+    colorRim: '#8fd8d0',
+
+    /* --- the crown --- */
+    /**
+     * The wall of water standing at the boundary — the milk-crown the reference
+     * sheet is built around. A lathe whose vertex stage is the whole shape: the
+     * rim is scalloped into fingers, the fingers lean out as they fall, and the
+     * crest is *torn* by a threshold that climbs, so the top breaks into spray
+     * instead of ending on a clean line.
+     */
+    crownHeight: 1.85, // metres at its tallest
+    crownRise: 0.28, // seconds to stand up
+    crownFall: 2.2, // seconds to fall back
+    crownFingers: 26, // scallops around the rim
+    crownFingerDepth: 0.62, // how deep they cut
+    crownFlare: 0.1, // how far the wall leans out over its height
+    crownCurl: 0.1, // how far the crest curls back in
+    crownLean: 0.16, // extra lean once it starts to fall
+    crownWobble: 0.06, // how far the radius wanders, × radius
+    crownWobbleScale: 2.8,
+    crownSpin: 0.1, // revolutions/second the scallops travel
+    crownTear: 0.8, // how hard the crest is torn into spray
+    crownTearScale: 4.6,
+    crownFoam: 0.85, // the white on the crest
+    crownFresnel: 1.7, // the rim light down the wall — this is a *scale*
+    crownStreak: 0.7, // ink running down the inside face
+    crownStreakScale: 5.5,
+    crownInk: 0.7, // how much of the wall is stained
+    crownOpacity: 1.0,
+    crownGlow: 1.0,
+    crownSoftFade: 0.5, // metres it softens against the scene
+
+    /* --- the column --- */
+    /**
+     * The jet up the middle: wide at the foot, pinched at the neck, swollen
+     * into a head that comes apart into droplets. It stands on impact, holds
+     * while the throat opens under it, then falls back into it — which is the
+     * beat that turns a splash into a drain.
+     */
+    columnHeight: 3.6, // metres
+    columnRise: 0.22, // seconds to full height
+    columnHold: 0.55, // seconds it stands before it collapses
+    columnFall: 1.3, // seconds to fall back
+    columnFoot: 0.42, // radius at the floor, × footprint
+    columnNeck: 0.15, // at the pinch
+    columnHead: 0.3, // at the crown of the jet
+    columnWobble: 0.14, // how far it wanders off plumb
+    columnWobbleScale: 2.2,
+    columnSpin: 0.35, // revolutions/second it turns on the way up
+    columnTear: 0.55, // how hard the head is torn into droplets
+    columnInk: 1.0, // how black the jet is — this is ink, not water
+    columnFoam: 0.5,
+    columnFresnel: 0.9,
+    columnOpacity: 0.95,
+
+    /* --- the suspended ink --- */
+    /**
+     * A raymarched volume, and the one pass here that cannot be faked with
+     * billboards: ink hanging in the water column, wound around the vortex,
+     * *absorbing* the frame rather than adding to it. `wispSteps` is the whole
+     * performance dial, and is a live slider for exactly that reason.
+     */
+    wispHeight: 3.2, // how far up the ink hangs, metres
+    wispSteps: 24, // samples per pixel through the volume
+    wispDensity: 3.4,
+    wispAbsorb: 1.75, // how fast it goes opaque along the ray
+    wispScale: 0.62, // features per metre
+    wispDetail: 2.2, // frequency of the filament layer
+    wispFilament: 0.62, // how much of it is strands rather than clouds
+    wispThreshold: 0.48, // below this there is simply no ink
+    wispRise: 0.35, // how fast the field climbs
+    wispStretch: 0.55, // <1 elongates it vertically
+    wispTwist: 2.4, // radians the column turns over its height
+    wispSpin: 0.14, // revolutions/second the whole volume turns
+    wispWind: 1.6, // extra turn near the axis — a vortex, not a spin
+    wispFunnel: 0.55, // how far the middle is hollowed out
+    wispEdge: 0.5, // where the wall starts to soften, × radius
+    wispFlare: 0.3, // how far it opens with height
+    wispSkirt: 0.12, // how far it spills past the boundary at the floor
+    wispFalloff: 1.35, // how fast it thins toward the top
+    wispLobe: 0.3, // how far the wall wanders
+    wispTear: 0.3, // how much harder the top is carved
+    wispLight: 0.85, // the sun coming down through the water
+    wispShadow: 2.6, // self-shadowing
+    wispShadowStep: 0.8, // metres to the shadow tap
+    wispAmbient: 0.08,
+    wispSaturate: 2.4, // how much thick ink deepens
+    wispOpacity: 1.0,
+    colorWispDeep: '#04070a', // thick ink, in the middle of a strand
+    colorWispBody: '#12363d',
+    colorWispEdge: '#4e8f92', // thin ink, at its edges
+    colorWispLight: '#bfe6e0', // daylight through the water
+
+    /* --- the surface refraction --- */
+    /**
+     * The water bends the frame. The proxy is the *floor*, not a camera-facing
+     * card: the offsets are read off the same ripple field the surface is shaded
+     * with, so what the warp does and what the water looks like cannot drift
+     * apart.
+     */
+    warpStrength: 1.15,
+    warpRipple: 0.85, // how much of it comes from the visible rings
+    warpScale: 1.6, // chop features per metre
+    warpSpeed: 0.7,
+
+    /* --- particles --- */
+    dropletRate: 90, // droplets thrown off the crown, per second
+    dropletSpeed: 3.6,
+    dropletLifetime: 1.15,
+    dropletSize: 0.075,
+    colorDropletA: '#e8f6f3',
+    colorDropletB: '#8ecfc9',
+    colorDropletC: '#1d4d55',
+    colorDropletD: '#0a1f26',
+
+    sprayRate: 60, // fine atomised spray off the crest
+    spraySpeed: 2.2,
+    sprayLifetime: 0.9,
+    spraySize: 0.11,
+    colorSprayA: '#ffffff',
+    colorSprayB: '#cfeae6',
+    colorSprayC: '#6ba9a6',
+    colorSprayD: '#28494f',
+
+    fleckRate: 44, // flecks of pigment thrown clear
+    fleckSpeed: 2.9,
+    fleckLifetime: 1.5,
+    fleckSize: 0.09,
+    colorFleckA: '#26383d',
+    colorFleckB: '#0d171c',
+    colorFleckC: '#05080b',
+    colorFleckD: '#04060a',
+
+    hazeRate: 22, // the low haze hugging the surface
+    hazeSpeed: 0.7,
+    hazeLifetime: 2.4,
+    hazeSize: 1.05,
+    colorHazeA: '#9fc4c2',
+    colorHazeB: '#5c8d8f',
+    colorHazeC: '#22454c',
+    colorHazeD: '#0b1b21',
+
+    /* --- the grip: what the tide does to a body --- */
+    /**
+     * The one ability on this stage that does not simply *hit* what is standing
+     * in it. Everything caught in the circle — on its feet or already down — is
+     * taken hold of, wound around the throat and pulled under, and these are the
+     * numbers that decide how that reads. See `SumiTideAbility#_drag`.
+     */
+    grip: {
+      // Speeds the water travels at, not forces it applies: the body is
+      // steered toward this velocity rather than pushed with an acceleration,
+      // which is the only formulation that stays stable when the frame is long
+      // and the solver's substeps are not. See `SumiTideAbility#_drag`.
+      flow: 4.6, // metres/second inward, at the boundary
+      swirl: 5.6, // metres/second tangential — what makes it a spiral
+      sink: 1.7, // metres/second down, once the throat has it
+      grab: 3.4, // how fast a body matches the water, per second
+      hold: 0.9, // seconds a body turns on the surface before it goes under
+      depth: 3.4, // metres it is allowed to fall below the floor
+      lift: 3.2, // metres/second the blow throws it up as it is taken
+      impulse: 1.6, // ... and inward
+      spin: 0.8, // extra impulse per body-height above the hips — the torque
+      splashDroplets: 40, // thrown when a body breaks the surface
+      splashSpray: 30,
+      splashFoam: 0.85, // brightness of the ring it leaves
+      splashShake: 0.05
+    },
+
+    /* --- the impact --- */
+    burstSize: 2.6, // the dome of spray thrown as the water lands
+    burstIntensity: 0.85,
+    shockRadius: 7.5, // the ring that snaps out past the boundary
+    stainRadius: 4.6, // the mark left on the floor
+    stainLife: 7.0,
+    stainIntensity: 0.7,
+    floodShake: 0.55,
+    shakeDuration: 0.5,
+    floodFlash: 0.05, // kept low: this ability is *dark*, it does not flare
+    rumble: 0.06, // continuous shake while the stroke runs
+    holdShake: 0.05, // ... and while the vortex turns
+    colorShockA: '#dff2ef',
+    colorShockB: '#3d777c',
+    colorStain: '#0a1418',
+    colorFlash: '#cfe8e6',
+    colorBurstA: '#eaf7f4',
+    colorBurstB: '#4f9298',
+    colorBurstC: '#0b2026',
+
+    /* --- dynamic light --- */
+    /**
+     * Cold, low and dim. The tide is the darkest thing in the set and the light
+     * is here to *shape* the crown, not to make the pool glow — push it and the
+     * black ink turns into teal plastic.
+     */
+    lightIntensity: 7.5,
+    lightRadius: 15,
+    lightHeight: 0.35, // × the crown's height
+    lightSwell: 0.55, // how much of the light the swell owns
+    lightColor: '#7fd6cf'
+  },
+
+  /* ------------------------------------------------------------------ */
   /* Camera rig                                                          */
   /* ------------------------------------------------------------------ */
   camera: {
@@ -4083,7 +4453,8 @@ export const ELEMENTS = [
   'growth',
   'cyber',
   'venom',
-  'quake'
+  'quake',
+  'ink'
 ];
 
 /**
@@ -4144,6 +4515,13 @@ export const ELEMENT_META = {
     accent: '#c9bda6',
     key: 'M',
     hint: 'Brutalist Earth Blast'
+  },
+  ink: {
+    label: 'Sumi Tide',
+    accent: '#7fd6cf',
+    key: 'L',
+    hint: 'Ink-paint Water Zone',
+    cast: CastShape.ZONE
   }
 };
 

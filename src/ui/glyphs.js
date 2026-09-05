@@ -230,6 +230,25 @@ const QUAKE = WRAP(`
   <path d="M85 15L93 20L86 26Z"/>
 `);
 
+/**
+ * Sumi Tide — a loaded brush stroke curling into a drain, with a drop falling
+ * into it.
+ *
+ * The only sigil in the set drawn as a *stroke* rather than as an outline: one
+ * open spiral that starts wide and tapers, which is both the brush mark the
+ * ability is painted with and the vortex it ends as. Two shorter arcs outside
+ * it are the ripples running off, the disc at the centre is the throat, and the
+ * teardrop above it is what is about to go down. At 34px the spiral alone reads
+ * as water going somewhere, which is the one thing this slot has to say.
+ */
+const INK = WRAP(`
+  <path d="M74 26C60 14 36 16 26 30C15 45 21 66 38 73C53 79 70 73 74 60C77 49 70 40 59 39C50 38 43 45 44 53C45 60 52 64 58 61"/>
+  <circle cx="55" cy="52" r="5"/>
+  <path d="M14 74C24 88 44 94 60 90"/>
+  <path d="M86 44C90 58 87 73 79 84"/>
+  <path d="M55 12C60 20 63 25 63 29A8 8 0 0 1 47 29C47 25 50 20 55 12Z"/>
+`);
+
 /** Keyed by the ids in `ELEMENTS`. */
 export const ELEMENT_SIGILS = {
   ice: ICE,
@@ -243,5 +262,6 @@ export const ELEMENT_SIGILS = {
   growth: GROWTH,
   cyber: CYBER,
   venom: VENOM,
-  quake: QUAKE
+  quake: QUAKE,
+  ink: INK
 };

@@ -192,6 +192,8 @@ export class Dummy {
     this.dissolve = 0;
     /** True once the body has been parted, which is what makes it two of them. */
     this.sliced = false;
+    /** True once it has gone under a surface — see `sink`. Latches the shadow off. */
+    this._sunk = false;
     /** Where the last cut opened, in world space. Read by whatever made it. */
     this.cutPoint = new Vector3();
 
@@ -643,6 +645,7 @@ export class Dummy {
     while (this.parts.length > 1) this._disposePart(this.parts.pop());
 
     this.sliced = false;
+    this._sunk = false;
     const part = this.parts[0];
     part.ragdoll = null;
     part.cutBone = null;
@@ -714,6 +717,94 @@ export class Dummy {
 
     this._fall(this.parts[0], x, z, force, null, null, null);
     return true;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* being taken hold of                                                 */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Where the body is while it falls — the hips, in world space.
+   *
+   * Not `position`, which is the spot it was placed at and which the solver
+   * never moves. Null while it is still standing, because a body on its feet
+   * has no solver to ask.
+   *
+   * @param {import('three').Vector3} out written in place
+   * @returns {import('three').Vector3|null}
+   */
+  bodyPoint(out) {
+    return this.parts[0].ragdoll?.centre(out) ?? null;
+  }
+
+  /**
+   * How fast it is travelling, metres per second. Null while it is standing.
+   *
+   * @param {import('three').Vector3} out written in place
+   * @returns {import('three').Vector3|null}
+   */
+  bodyVelocity(out) {
+    return this.parts[0].ragdoll?.velocity(out) ?? null;
+  }
+
+  /**
+   * Add a velocity to every joint of every piece — a current, not a blow.
+   *
+   * `kill` throws a body once, with a torque, and that is the whole damage
+   * model for everything that simply *reaches*. This is for the one thing that
+   * keeps acting on a body after it is down: a metre of moving water does not
+   * hit a corpse, it carries it, so it arrives as an acceleration every frame
+   * rather than as an impulse on one.
+   */
+  push(x, y, z) {
+    for (const part of this.parts) part.ragdoll?.shove(x, y, z);
+  }
+
+  /**
+   * Take the floor out from under this body.
+   *
+   * The solver clamps every joint to a ground plane, which is the stage floor
+   * for everything else standing on it. A whirlpool needs the one thing it has
+   * no concept of — water the body can go *through* — and dropping that plane by
+   * `depth` is the whole of it: gravity does the rest, the opaque floor hides
+   * whatever has gone under it, and the shadow is dropped on the way past so a
+   * body beneath the surface is not still printing one on top of it.
+   *
+   * Idempotent, and safe to call every frame: it is only ever lowering a number
+   * the solver reads.
+   *
+   * @param {number} depth metres below the stage floor the body may fall to
+   */
+  sink(depth) {
+    const floor = -Math.max(0, depth);
+    for (const part of this.parts) {
+      // Monotonic: the floor only ever goes *down*. Assigning it outright would
+      // let a caller that reduces its depth — a whirlpool losing its grip, or
+      // one taking hold of a body it had already let go of — shove a submerged
+      // corpse back up through the surface that swallowed it.
+      if (part.ragdoll) part.ragdoll.floor = Math.min(part.ragdoll.floor, floor);
+    }
+    if (this._sunk) return;
+    const hips = this.bodyPoint(_scratch);
+    if (!hips || hips.y > -0.25) return;
+    this._sunk = true;
+    this._castShadows(false);
+  }
+
+  /**
+   * Give the floor back, wherever the body has got to.
+   *
+   * Called when whatever had hold of it lets go. A body still above the surface
+   * is handed the stage floor again and lands on it; one already under is left
+   * with the floor it has, because raising the plane under a submerged corpse
+   * would shove it back up through the water that just swallowed it.
+   */
+  release() {
+    const hips = this.bodyPoint(_scratch);
+    if (hips && hips.y < 0) return;
+    for (const part of this.parts) {
+      if (part.ragdoll) part.ragdoll.floor = 0;
+    }
   }
 
   /**

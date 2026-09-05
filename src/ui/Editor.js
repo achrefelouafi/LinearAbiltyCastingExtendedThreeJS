@@ -46,6 +46,7 @@ export class Editor {
     this._buildCyber();
     this._buildVenom();
     this._buildQuake();
+    this._buildInk();
     this._buildEnvironment();
     this._buildPost();
     this._buildCamera();
@@ -3227,6 +3228,266 @@ export class Editor {
     light.addColor(c, 'lightColor').name('light colour');
 
     this.quakeFolder = folder;
+  }
+
+  /* ------------------------------------------------------------------ */
+
+  _buildInk() {
+    const folder = this.gui.addFolder('🖌  Sumi Tide');
+    const c = settings.ink;
+    const R = Editor.range;
+
+    const cast = folder.addFolder('The cast');
+    R(cast, c, 'zoneRadius', 0.5, 14, 0.05, 'footprint radius');
+    R(cast, c, 'range', 2, 50, 0.1, 'max range');
+    R(cast, c, 'minRange', 0, 10, 0.1, 'min range');
+    R(cast, c, 'speed', 5, 300, 1, 'stroke speed');
+    R(cast, c, 'floodTime', 0.05, 3, 0.01, 'flood time');
+    R(cast, c, 'drainTime', 0.05, 4, 0.01, 'throat opens after');
+    R(cast, c, 'lifetime', 0.2, 16, 0.05, 'hold time');
+    R(cast, c, 'fadeTime', 0.05, 6, 0.01, 'drain time');
+    R(cast, c, 'cooldown', 0, 8, 0.05, 'cooldown');
+    Editor.castAnimation(cast, c);
+
+    const swell = folder.addFolder('The swell');
+    R(swell, c, 'swellRate', 0.05, 6, 0.05, 'envelope speed');
+    R(swell, c, 'swellSharp', 0.2, 6, 0.05, 'surge sharpness');
+    R(swell, c, 'swellDepth', 0, 2, 0.01, 'modulation depth');
+    R(swell, c, 'tideThreshold', 0.05, 0.98, 0.01, 'surge threshold');
+    R(swell, c, 'tideRipple', 0, 3, 0.01, 'ripple brightness');
+    R(swell, c, 'tideSpray', 0, 200, 1, 'spray / surge');
+    R(swell, c, 'tideShake', 0, 0.5, 0.002, 'camera knock');
+
+    const stroke = folder.addFolder('The stroke');
+    R(stroke, c, 'handHeight', 0, 2.5, 0.01, 'hand height');
+    R(stroke, c, 'handForward', -1, 3, 0.01, 'hand forward');
+    R(stroke, c, 'handSide', -1.5, 1.5, 0.01, 'hand side');
+    R(stroke, c, 'trailInk', 0, 200, 1, 'flecks / metre');
+    R(stroke, c, 'trailSpray', 0, 200, 1, 'spray / metre');
+
+    const paper = folder.addFolder('The paper wash');
+    R(paper, c, 'washRadius', 0.5, 3, 0.01, 'sheet radius');
+    R(paper, c, 'washOpacity', 0, 1.5, 0.01, 'opacity');
+    R(paper, c, 'washBleed', 0.02, 3, 0.01, 'edge bleed');
+    R(paper, c, 'washDeckle', 0, 1, 0.01, 'torn edge');
+    R(paper, c, 'washDeckleScale', 0.2, 8, 0.05, 'tear scale');
+    R(paper, c, 'washTooth', 0, 1.5, 0.01, 'paper tooth');
+    R(paper, c, 'washToothScale', 0.5, 20, 0.1, 'tooth / metre');
+    R(paper, c, 'washFibre', 0, 1, 0.01, 'fibres');
+    R(paper, c, 'washFibreScale', 0.2, 8, 0.05, 'fibre scale');
+    R(paper, c, 'washDry', 0, 1, 0.01, 'survives drying');
+    paper.addColor(c, 'colorPaper').name('sheet');
+    paper.addColor(c, 'colorPaperShade').name('sheet, shaded');
+
+    const ink = folder.addFolder('The ink');
+    R(ink, c, 'inkRadius', 0.2, 2, 0.01, 'puddle radius');
+    R(ink, c, 'inkOpacity', 0, 1.5, 0.01, 'opacity');
+    R(ink, c, 'inkFeather', 0.01, 1.5, 0.005, 'edge feather');
+    R(ink, c, 'inkTendril', 0, 1.5, 0.01, 'wicking fingers');
+    R(ink, c, 'inkTendrilScale', 0.2, 12, 0.05, 'finger scale');
+    R(ink, c, 'inkEdge', 0, 2, 0.01, 'stranded rim');
+    R(ink, c, 'inkEdgeWidth', 0.02, 2, 0.01, 'rim width');
+    R(ink, c, 'granulation', 0, 1.5, 0.01, 'granulation');
+    R(ink, c, 'granulationScale', 0.5, 20, 0.1, 'granulation scale');
+    R(ink, c, 'inkSwirl', 0, 5, 0.01, 'veil winding');
+    R(ink, c, 'inkVeil', 0, 2, 0.01, 'ink in the water');
+    R(ink, c, 'inkVeilScale', 0.05, 4, 0.01, 'veil scale');
+    R(ink, c, 'inkVeilSharp', 0.2, 8, 0.05, 'strand sharpness');
+    ink.addColor(c, 'colorInk').name('pigment');
+    ink.addColor(c, 'colorInkWash').name('thinned ink');
+
+    const water = folder.addFolder('The water');
+    R(water, c, 'waterOpacity', 0, 1.5, 0.01, 'opacity');
+    R(water, c, 'waterDepth', 0.1, 4, 0.01, 'darkening with depth');
+    R(water, c, 'ripple', 0, 0.4, 0.001, 'wave amplitude');
+    R(water, c, 'rippleScale', 0.05, 6, 0.01, 'waves / metre');
+    R(water, c, 'rippleSpeed', -4, 4, 0.01, 'wave speed');
+    R(water, c, 'chop', 0, 2, 0.01, 'chop');
+    R(water, c, 'chopScale', 0.5, 16, 0.05, 'chop scale');
+    R(water, c, 'sheen', 0, 4, 0.01, 'specular');
+    R(water, c, 'gloss', 0, 1, 0.01, 'gloss tightness');
+    R(water, c, 'caustic', 0, 3, 0.01, 'caustics');
+    R(water, c, 'causticScale', 0.1, 8, 0.05, 'caustic scale');
+    R(water, c, 'causticSpeed', -3, 3, 0.01, 'caustic speed');
+    R(water, c, 'rimFoam', 0, 3, 0.01, 'foam at the wall');
+    R(water, c, 'rimFoamWidth', 0.02, 2, 0.01, 'foam width');
+    R(water, c, 'poolHeight', 0.005, 0.3, 0.002, 'hover height');
+    R(water, c, 'poolOpacity', 0, 2, 0.01, 'floor opacity');
+    water.addColor(c, 'colorWater').name('water');
+    water.addColor(c, 'colorWaterDeep').name('deep water');
+    water.addColor(c, 'colorFoam').name('foam');
+    water.addColor(c, 'colorRim').name('rim light');
+
+    const throat = folder.addFolder('The throat');
+    R(throat, c, 'throatSize', 0.02, 1, 0.005, 'throat radius');
+    R(throat, c, 'throatDepth', 0, 1.5, 0.01, 'how black');
+    R(throat, c, 'throatLip', 0.01, 1, 0.005, 'lip width');
+    R(throat, c, 'throatSpin', -6, 6, 0.01, 'vortex speed');
+
+    const ripples = folder.addFolder('The brush ripples');
+    R(ripples, c, 'rings', 0, 8, 1, 'rings in flight');
+    R(ripples, c, 'ringSpeed', 0, 3, 0.01, 'radii / second');
+    R(ripples, c, 'ringWidth', 0.01, 1, 0.005, 'stroke width');
+    R(ripples, c, 'ringTaper', 0, 1, 0.01, 'taper');
+    R(ripples, c, 'ringInk', 0, 2, 0.01, 'ink');
+    R(ripples, c, 'ringFoam', 0, 2, 0.01, 'leading white');
+    R(ripples, c, 'ringBristle', 0, 1, 0.01, 'dry-brush skips');
+    R(ripples, c, 'ringBristleScale', 0.5, 30, 0.1, 'skip scale');
+    R(ripples, c, 'ringWobble', 0, 0.5, 0.005, 'radius wander');
+    R(ripples, c, 'ringWobbleScale', 0.2, 10, 0.05, 'wander scale');
+    R(ripples, c, 'ringReach', 0.2, 4, 0.01, 'how far they run');
+
+    const splatter = folder.addFolder('The splatter');
+    R(splatter, c, 'splatter', 0, 1, 0.01, 'fleck density');
+    R(splatter, c, 'splatterScale', 0.1, 6, 0.01, 'cells / metre');
+    R(splatter, c, 'splatterSize', 0.05, 1.5, 0.01, 'fleck size');
+    R(splatter, c, 'splatterTail', 0, 8, 0.05, 'teardrop tail');
+    R(splatter, c, 'splatterSpread', 0.5, 3, 0.01, 'how far thrown');
+
+    const crown = folder.addFolder('The crown');
+    R(crown, c, 'crownHeight', 0.1, 8, 0.05, 'wall height');
+    R(crown, c, 'crownRise', 0.02, 2, 0.01, 'rise time');
+    R(crown, c, 'crownFall', 0.05, 6, 0.01, 'fall-back time');
+    R(crown, c, 'crownFingers', 3, 60, 1, 'scallops');
+    R(crown, c, 'crownFingerDepth', 0, 1, 0.01, 'scallop depth');
+    R(crown, c, 'crownFlare', -0.5, 1.5, 0.01, 'outward lean');
+    R(crown, c, 'crownCurl', -0.5, 1, 0.01, 'crest curl');
+    R(crown, c, 'crownLean', 0, 2, 0.01, 'lean as it falls');
+    R(crown, c, 'crownWobble', 0, 0.5, 0.005, 'radius wander');
+    R(crown, c, 'crownWobbleScale', 0.2, 10, 0.05, 'wander scale');
+    R(crown, c, 'crownSpin', -2, 2, 0.005, 'scallop travel');
+    R(crown, c, 'crownTear', 0, 1.5, 0.01, 'crest tearing');
+    R(crown, c, 'crownTearScale', 0.2, 12, 0.05, 'tear scale');
+    R(crown, c, 'crownFoam', 0, 4, 0.01, 'crest foam');
+    R(crown, c, 'crownFresnel', 0, 4, 0.01, 'rim light (scale)');
+    R(crown, c, 'crownStreak', 0, 2, 0.01, 'ink streaks');
+    R(crown, c, 'crownStreakScale', 0.5, 20, 0.1, 'streak scale');
+    R(crown, c, 'crownInk', 0, 1.5, 0.01, 'how stained');
+    R(crown, c, 'crownOpacity', 0, 2, 0.01, 'opacity');
+    R(crown, c, 'crownGlow', 0, 4, 0.01, 'glow');
+    R(crown, c, 'crownSoftFade', 0.02, 3, 0.01, 'soft fade, metres');
+
+    const column = folder.addFolder('The column');
+    R(column, c, 'columnHeight', 0.2, 12, 0.05, 'jet height');
+    R(column, c, 'columnRise', 0.02, 2, 0.01, 'rise time');
+    R(column, c, 'columnHold', 0, 4, 0.01, 'hold time');
+    R(column, c, 'columnFall', 0.05, 5, 0.01, 'fall time');
+    R(column, c, 'columnFoot', 0.02, 1.5, 0.01, 'radius at the foot');
+    R(column, c, 'columnNeck', 0.01, 1, 0.005, 'radius at the neck');
+    R(column, c, 'columnHead', 0.01, 1.5, 0.005, 'radius at the head');
+    R(column, c, 'columnWobble', 0, 1, 0.005, 'off plumb');
+    R(column, c, 'columnWobbleScale', 0.2, 10, 0.05, 'wander scale');
+    R(column, c, 'columnSpin', -3, 3, 0.01, 'twist as it climbs');
+    R(column, c, 'columnTear', 0, 1.5, 0.01, 'head tearing');
+    R(column, c, 'columnInk', 0, 1, 0.01, 'how black');
+    R(column, c, 'columnFoam', 0, 3, 0.01, 'foam');
+    R(column, c, 'columnFresnel', 0, 4, 0.01, 'rim light (scale)');
+    R(column, c, 'columnOpacity', 0, 2, 0.01, 'opacity');
+
+    const wisps = folder.addFolder('The suspended ink');
+    R(wisps, c, 'wispSteps', 6, 64, 1, 'march steps (cost)');
+    R(wisps, c, 'wispHeight', 0.2, 12, 0.05, 'how high it hangs');
+    R(wisps, c, 'wispDensity', 0, 6, 0.01, 'density');
+    R(wisps, c, 'wispAbsorb', 0.05, 6, 0.01, 'absorption');
+    R(wisps, c, 'wispScale', 0.05, 3, 0.005, 'features / metre');
+    R(wisps, c, 'wispDetail', 0.2, 6, 0.05, 'filament scale');
+    R(wisps, c, 'wispFilament', 0, 1, 0.01, 'strands vs clouds');
+    R(wisps, c, 'wispThreshold', 0, 0.9, 0.01, 'carve threshold');
+    R(wisps, c, 'wispRise', -3, 3, 0.01, 'climb speed');
+    R(wisps, c, 'wispStretch', 0.05, 2, 0.01, 'vertical stretch');
+    R(wisps, c, 'wispTwist', -8, 8, 0.05, 'twist over height');
+    R(wisps, c, 'wispSpin', -1, 1, 0.005, 'whole-volume spin');
+    R(wisps, c, 'wispWind', 0, 6, 0.05, 'vortex near the axis');
+    R(wisps, c, 'wispFunnel', 0, 1, 0.01, 'hollow middle');
+    R(wisps, c, 'wispEdge', 0, 1, 0.01, 'wall softness');
+    R(wisps, c, 'wispFlare', -0.4, 1.5, 0.01, 'opening with height');
+    R(wisps, c, 'wispSkirt', 0, 1, 0.01, 'spill past the edge');
+    R(wisps, c, 'wispFalloff', 0.1, 5, 0.01, 'thinning upward');
+    R(wisps, c, 'wispLobe', 0, 1, 0.01, 'wall wander');
+    R(wisps, c, 'wispTear', 0, 0.6, 0.005, 'top tearing');
+    R(wisps, c, 'wispLight', 0, 3, 0.01, 'daylight through');
+    R(wisps, c, 'wispShadow', 0, 8, 0.05, 'self-shadow');
+    R(wisps, c, 'wispShadowStep', 0.05, 4, 0.05, 'shadow tap, metres');
+    R(wisps, c, 'wispAmbient', 0, 1, 0.005, 'ambient');
+    R(wisps, c, 'wispSaturate', 0, 5, 0.01, 'deepening with density');
+    R(wisps, c, 'wispOpacity', 0, 2, 0.01, 'opacity');
+    wisps.addColor(c, 'colorWispDeep').name('thick ink');
+    wisps.addColor(c, 'colorWispBody').name('body');
+    wisps.addColor(c, 'colorWispEdge').name('thin ink');
+    wisps.addColor(c, 'colorWispLight').name('daylight through');
+
+    const warp = folder.addFolder('Surface refraction');
+    R(warp, c, 'warpStrength', 0, 4, 0.01, 'strength');
+    R(warp, c, 'warpRipple', 0, 3, 0.01, 'from the rings');
+    R(warp, c, 'warpScale', 0.1, 8, 0.05, 'chop scale');
+    R(warp, c, 'warpSpeed', -3, 3, 0.01, 'chop speed');
+
+    const grip = folder.addFolder('The swallow');
+    const gc = c.grip;
+    R(grip, gc, 'flow', 0, 20, 0.1, 'inward current, m/s');
+    R(grip, gc, 'swirl', 0, 20, 0.1, 'tangential current, m/s');
+    R(grip, gc, 'sink', 0, 20, 0.1, 'downward current, m/s');
+    R(grip, gc, 'grab', 0.1, 12, 0.05, 'how fast it takes hold');
+    R(grip, gc, 'hold', 0, 3, 0.01, 'turns on the surface for');
+    R(grip, gc, 'depth', 0.5, 12, 0.1, 'how deep they go');
+    R(grip, gc, 'impulse', 0, 20, 0.1, 'blow, inward');
+    R(grip, gc, 'lift', 0, 12, 0.1, 'blow, upward');
+    R(grip, gc, 'spin', 0, 4, 0.01, 'blow, torque');
+    R(grip, gc, 'splashDroplets', 0, 200, 1, 'splash droplets');
+    R(grip, gc, 'splashSpray', 0, 200, 1, 'splash spray');
+    R(grip, gc, 'splashFoam', 0, 3, 0.01, 'splash ring');
+    R(grip, gc, 'splashShake', 0, 0.5, 0.002, 'splash knock');
+
+    const particles = folder.addFolder('Particles');
+    R(particles, c, 'dropletRate', 0, 400, 1, 'droplets / second');
+    R(particles, c, 'dropletSpeed', 0, 14, 0.05, 'droplet speed');
+    R(particles, c, 'dropletLifetime', 0.05, 6, 0.05, 'droplet life');
+    R(particles, c, 'dropletSize', 0.01, 0.6, 0.005, 'droplet size');
+    R(particles, c, 'sprayRate', 0, 400, 1, 'spray / second');
+    R(particles, c, 'spraySpeed', 0, 12, 0.05, 'spray speed');
+    R(particles, c, 'sprayLifetime', 0.05, 6, 0.05, 'spray life');
+    R(particles, c, 'spraySize', 0.01, 0.8, 0.005, 'spray size');
+    R(particles, c, 'fleckRate', 0, 400, 1, 'flecks / second');
+    R(particles, c, 'fleckSpeed', 0, 12, 0.05, 'fleck speed');
+    R(particles, c, 'fleckLifetime', 0.05, 6, 0.05, 'fleck life');
+    R(particles, c, 'fleckSize', 0.01, 0.6, 0.005, 'fleck size');
+    R(particles, c, 'hazeRate', 0, 200, 1, 'haze / second');
+    R(particles, c, 'hazeSpeed', 0, 8, 0.05, 'haze speed');
+    R(particles, c, 'hazeLifetime', 0.05, 8, 0.05, 'haze life');
+    R(particles, c, 'hazeSize', 0.05, 4, 0.01, 'haze size');
+    Editor.gradient(particles, c, 'colorDroplet', 'Droplet gradient');
+    Editor.gradient(particles, c, 'colorSpray', 'Spray gradient');
+    Editor.gradient(particles, c, 'colorFleck', 'Fleck gradient');
+    Editor.gradient(particles, c, 'colorHaze', 'Haze gradient');
+
+    const impact = folder.addFolder('The flood');
+    R(impact, c, 'burstSize', 0.1, 12, 0.05, 'spray dome');
+    R(impact, c, 'burstIntensity', 0, 4, 0.01, 'dome brightness');
+    R(impact, c, 'shockRadius', 0.5, 25, 0.1, 'shock ring');
+    R(impact, c, 'stainRadius', 0.5, 16, 0.1, 'stain radius');
+    R(impact, c, 'stainLife', 0.5, 20, 0.1, 'stain life');
+    R(impact, c, 'stainIntensity', 0, 3, 0.01, 'stain strength');
+    R(impact, c, 'floodShake', 0, 2, 0.005, 'flood shake');
+    R(impact, c, 'shakeDuration', 0.05, 3, 0.01, 'shake decay');
+    R(impact, c, 'floodFlash', 0, 1, 0.005, 'flood flash');
+    R(impact, c, 'rumble', 0, 0.3, 0.002, 'travel rumble');
+    R(impact, c, 'holdShake', 0, 0.3, 0.002, 'hold rumble');
+    impact.addColor(c, 'colorShockA').name('shock inner');
+    impact.addColor(c, 'colorShockB').name('shock outer');
+    impact.addColor(c, 'colorStain').name('stain');
+    impact.addColor(c, 'colorFlash').name('flood flash');
+    impact.addColor(c, 'colorBurstA').name('dome core');
+    impact.addColor(c, 'colorBurstB').name('dome body');
+    impact.addColor(c, 'colorBurstC').name('dome edge');
+
+    const light = folder.addFolder('Dynamic light');
+    R(light, c, 'lightIntensity', 0, 160, 0.5, 'light intensity');
+    R(light, c, 'lightRadius', 0.5, 60, 0.1, 'light radius');
+    R(light, c, 'lightHeight', 0, 2, 0.01, 'height in the crown');
+    R(light, c, 'lightSwell', 0, 2, 0.01, 'swell owns');
+    light.addColor(c, 'lightColor').name('light colour');
+
+    this.inkFolder = folder;
   }
 
   /* ------------------------------------------------------------------ */

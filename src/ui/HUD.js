@@ -44,7 +44,8 @@ export class HUD {
         <div><strong>N</strong> — Arborist's Growth &nbsp; <strong>K</strong> — Cyber Serpent</div>
         <div><strong>J</strong> — Crystallized Venom Surge</div>
         <div><strong>M</strong> — Brutalist Earth Blast</div>
-        <div class="hud__help-note">V, X, B, Z and N are far casts — aimed with a circle, not an arrow.</div>
+        <div><strong>L</strong> — Ink-paint Water Zone</div>
+        <div class="hud__help-note">V, X, B, Z, N and L are far casts — aimed with a circle, not an arrow.</div>
         <div><strong>Move</strong> — aim &nbsp; <strong>Left click</strong> — cast</div>
         <div><strong>Esc / right click</strong> — cancel the cast</div>
         <div><strong>Right drag</strong> — orbit &nbsp; <strong>Scroll</strong> — zoom</div>
@@ -54,6 +55,7 @@ export class HUD {
         <div><kbd>T</kbd> reset targets &nbsp; <kbd>H</kbd> hide this</div>
         <div class="hud__help-note">Any cast that reaches a target one-shots it.</div>
         <div class="hud__help-note">The Chrono-Summon picks its own: it cuts them in half.</div>
+        <div class="hud__help-note">The Sumi Tide picks its own too: it drags them under.</div>
         <div class="hud__help-note">Paused still applies every editor change.</div>
       </div>
 

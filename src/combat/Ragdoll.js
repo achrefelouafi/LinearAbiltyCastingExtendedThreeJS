@@ -543,6 +543,44 @@ export class Ragdoll {
     this._still = 0;
   }
 
+  /**
+   * Where the body actually is right now — the hips, in world space.
+   *
+   * `Dummy#position` is the root the body was *placed* at, and the solver never
+   * touches it: a corpse thrown four metres by a blast still reports the spot it
+   * was standing on. Anything that has to keep acting on a body while it falls —
+   * a current dragging it, a surface it is sinking through — has to ask the
+   * particles, and this is that question.
+   *
+   * @param {import('three').Vector3} out written in place, so polling every
+   *   frame allocates nothing
+   * @returns {import('three').Vector3|null} null if there is no body to find
+   */
+  centre(out) {
+    if (!this.valid) return null;
+    const i = this.hips.index;
+    return out.set(this.px[i], this.py[i], this.pz[i]);
+  }
+
+  /**
+   * How fast the body is travelling — the hips, metres per second.
+   *
+   * The companion to `centre`, and it exists for one reason: anything that
+   * wants to *carry* a body rather than hit it has to know how fast it is
+   * already going. Pushing a fixed acceleration in every frame instead is
+   * unstable here, because this solver consumes a bounded number of substeps
+   * per frame — on a slow frame the velocity keeps accumulating while the
+   * positions cannot follow, and the body eventually leaves the map.
+   *
+   * @param {import('three').Vector3} out written in place
+   * @returns {import('three').Vector3|null}
+   */
+  velocity(out) {
+    if (!this.valid) return null;
+    const i = this.hips.index;
+    return out.set(this.vx[i], this.vy[i], this.vz[i]);
+  }
+
   /* ------------------------------------------------------------------ */
   /* simulation                                                          */
   /* ------------------------------------------------------------------ */

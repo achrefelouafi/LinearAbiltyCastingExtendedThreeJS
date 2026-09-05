@@ -341,6 +341,52 @@ export class DummyField {
     return out;
   }
 
+  /**
+   * Every body within `radius` — standing, or already lying there.
+   *
+   * The counterpart to `findTargets` for a cast that takes *hold* of what it
+   * finds rather than hitting it. A corpse in a whirlpool is dragged under
+   * exactly like a body that was standing in it, and a tide that swallowed only
+   * the living would be the one thing on this stage that reads as a rule rather
+   * than as water.
+   *
+   * A body that is down is measured where it actually lies (`Dummy#bodyPoint`)
+   * rather than at the spot it was placed, because that spot can be metres away
+   * by the time anything comes looking.
+   *
+   * `out` is written in place and returned, so a caller polling every frame
+   * allocates nothing.
+   *
+   * @param {number} x world, flat
+   * @param {number} z
+   * @param {number} radius metres
+   * @param {import('./Dummy.js').Dummy[]} out reused array, cleared here
+   */
+  findBodies(x, z, radius, out) {
+    out.length = 0;
+    if (!settings.dummies.enabled) return out;
+
+    const reach = radius + settings.dummies.bodyRadius;
+    const squared = reach * reach;
+
+    for (const slot of this.slots) {
+      const dummy = slot.dummy;
+      if (dummy.state === 'gone') continue;
+
+      const at = dummy.alive ? dummy.position : (dummy.bodyPoint(_point) ?? dummy.position);
+      const dx = at.x - x;
+      const dz = at.z - z;
+      const distance = dx * dx + dz * dz;
+      if (distance > squared) continue;
+
+      dummy._searchDistance = distance;
+      out.push(dummy);
+    }
+
+    out.sort((a, b) => a._searchDistance - b._searchDistance);
+    return out;
+  }
+
   /* ------------------------------------------------------------------ */
 
   dispose() {

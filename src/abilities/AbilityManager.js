@@ -10,6 +10,7 @@ import { ArborBloomAbility } from './ArborBloomAbility.js';
 import { CyberSerpentAbility } from './CyberSerpentAbility.js';
 import { VenomSurgeAbility } from './VenomSurgeAbility.js';
 import { MonolithRiftAbility } from './MonolithRiftAbility.js';
+import { SumiTideAbility } from './SumiTideAbility.js';
 import { ELEMENTS } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
@@ -26,7 +27,8 @@ const ABILITY_TYPES = {
   growth: ArborBloomAbility,
   cyber: CyberSerpentAbility,
   venom: VenomSurgeAbility,
-  quake: MonolithRiftAbility
+  quake: MonolithRiftAbility,
+  ink: SumiTideAbility
 };
 
 const MAX_CONCURRENT = 4;
