@@ -842,6 +842,27 @@ export class Editor {
     ground.addColor(c, 'colorShockA').name('shockwave ring');
     ground.addColor(c, 'colorShockB').name('shockwave crest');
 
+    // The only ability that dissolves what it catches instead of throwing it.
+    // The three blow sliders are at zero and are meant to stay there — they are
+    // here so the difference can be heard by turning them up.
+    const melt = folder.addFolder('What it dissolves');
+    const mc = c.melt;
+    melt.add(mc, 'enabled').name('dissolves bodies');
+    R(melt, mc, 'reach', 0.2, 3, 0.01, 'eats within, x footprint');
+    R(melt, mc, 'onset', 0, 4, 0.01, 'flesh goes after');
+    R(melt, mc, 'rate', 0.05, 6, 0.01, 'body eaten / second');
+    R(melt, mc, 'boil', 0, 1, 0.01, 'owned by the boil');
+    R(melt, mc, 'stain', 0.1, 8, 0.05, 'green takes over / second');
+    R(melt, mc, 'impulse', 0, 20, 0.1, 'blow, outward');
+    R(melt, mc, 'lift', 0, 12, 0.1, 'blow, upward');
+    R(melt, mc, 'spin', 0, 4, 0.01, 'blow, torque');
+    R(melt, mc.look, 'rimEmissive', 0, 8, 0.05, 'corroded rim glow');
+    R(melt, mc.look, 'edgeEmissive', 0, 16, 0.05, 'corroded burn glow');
+    R(melt, mc.look, 'edgeWidth', 0.005, 0.4, 0.005, 'corroded burn width');
+    melt.addColor(mc.look, 'color').name('corroded flesh');
+    melt.addColor(mc.look, 'rimColor').name('corroded rim');
+    melt.addColor(mc.look, 'edgeColor').name('corroded burn');
+
     const impact = folder.addFolder('Throw, bloom & hold');
     R(impact, c, 'handHeight', 0, 3, 0.01, 'hand height');
     R(impact, c, 'handForward', -1, 3, 0.01, 'hand forward');

@@ -1003,6 +1003,68 @@ export const settings = {
     colorShockA: '#8fff1e',
     colorShockB: '#b6f05a',
 
+    /* --- what it does to a body --- */
+    /**
+     * The one far cast on this stage that does not *hit* anything.
+     *
+     * Every other zone fells what is standing in it outward on the frame the
+     * front lands, and that is exactly wrong here: there is no blast in acid.
+     * There is only time. A body caught in the bloom stops holding itself up —
+     * `impulse`, `lift` and `spin` are zero, so `Ragdoll#strike` writes every
+     * joint's velocity as nothing and the body goes limp in the pose it was
+     * standing in — and then the pool takes it apart where gravity dropped it.
+     * See `AcidAbility#_melt`.
+     *
+     * The three blow numbers are here so the editor can still throw bodies
+     * about, not because anything about this ability wants them.
+     */
+    melt: {
+      enabled: true,
+      reach: 1.05, // how far it eats, × the footprint: the fumes spill a little
+      impulse: 0.0, // the blow, and it is nothing on purpose
+      lift: 0.0,
+      spin: 0.0,
+      // Long enough that the body has *landed*, and then lain there going
+      // green, before the first of it goes. A ragdoll takes the better part of
+      // a second to fall, and a corpse that starts dissolving on the way down
+      // has been deleted rather than eaten.
+      onset: 1.6, // seconds in the acid before the flesh starts to go
+      // Comfortably faster than `dummies.dissolveTime`, and that is not a
+      // taste call. `Dummy#update` runs the natural burn as a *floor* under
+      // whatever is eating the body, so an acid slower than that floor is an
+      // acid nobody can see working: the corpse would go on its own clock and
+      // the surges below would land on nothing.
+      rate: 1.8, // fraction of a body taken per second, between surges
+      boil: 0.55, // how much of that rate the surge owns — it eats in bursts
+      stain: 1.6, // how fast the green takes a whole body over, per second
+      /**
+       * What the acid turns a body into, and what its dissolve burns along.
+       *
+       * Lerped over `settings.dummies.look` by how far the stain has got, so a
+       * body is already green while it is still whole and stays green while
+       * whatever is left of it burns away — see `Dummy#corrode`.
+       */
+      look: {
+        // Dark, and that is not a mood call. The body ends up lying in a pool
+        // of glowing acid, and a corpse the same green as what it is lying in
+        // is a corpse nobody can see dissolving. The green that reads is the
+        // rim and the burn line; the flesh under them has to stay the dark
+        // thing they are drawn against.
+        color: '#1b2708', // the flesh, eaten
+        rimColor: '#9be62a', // the silhouette, while it still has one
+        rimEmissive: 1.8,
+        edgeColor: '#d8ff7a', // the line the burn runs along
+        edgeEmissive: 3.8,
+        // Much narrower than the body's own ember burn, and that is the whole
+        // difference between a corpse dissolving and a corpse glowing. This one
+        // is lying in a pool that is already near-white in places: at the stock
+        // width, a third of the surviving surface is inside the band at once
+        // and the body blooms into one lump of light with an arm out of it. A
+        // thin line has somewhere dark to be read against.
+        edgeWidth: 0.045
+      }
+    },
+
     /* --- dynamic light --- */
     lightIntensity: 18,
     lightRadius: 20,

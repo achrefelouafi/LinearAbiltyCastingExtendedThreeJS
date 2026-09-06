@@ -32,6 +32,9 @@ const MIST_CIRCUMSCRIBE = 1 / Math.cos(Math.PI / MIST_SEGMENTS);
 /** How many points one frame's motes are split between. A single origin reads as a hose. */
 const MOTE_BATCHES = 4;
 
+/** How many bodies one bloom can be taking apart at once. */
+const MAX_MELTS = 16;
+
 const _emit = {};
 const _pos = new Vector3();
 const _centre = new Vector3();
@@ -96,6 +99,16 @@ function boilEnvelope(t) {
  * free-runs on its own sine, and that is the difference between a stack of
  * effects and one reaction.
  *
+ * **What it does to a body is the point.** This class answers `handlesOwnHits`,
+ * so `DummyField` leaves it alone — which matters, because the field would
+ * otherwise read this as a far cast and fling everything standing in the circle
+ * *outward* on the frame the pool opens. There is no blast in acid. `_melt`
+ * asks `findBodies` who is inside the footprint, standing or already down, and
+ * cuts the living loose into the solver with a blow of exactly zero: the body
+ * goes limp in the pose it was in and gravity drops it into the pool. Then the
+ * pool eats it where it fell — stained green first, taken apart after, both on
+ * the boil's clock, so a corpse goes in the same surges the gas does.
+ *
  * **The rule that makes the editor work.** A cast captures one number — a seed —
  * and a handful of timestamps. Not one metre, radian or second is recorded: the
  * footprint, the pool, the column, the ring and the shimmer are all resolved
@@ -106,6 +119,18 @@ function boilEnvelope(t) {
 export class AcidAbility extends Ability {
   constructor(context) {
     super('acid', context);
+  }
+
+  /**
+   * The bloom picks what it reaches, and it never throws it.
+   *
+   * `DummyField` would otherwise read this cast as a far-cast disc and fell
+   * everything inside it outward on the frame the front lands — bodies launched
+   * clear of the one ability on this stage whose whole point is that they stay
+   * in it and dissolve.
+   */
+  get handlesOwnHits() {
+    return true;
   }
 
   /* ------------------------------------------------------------------ */
@@ -207,6 +232,18 @@ export class AcidAbility extends Ability {
     this._ringState = { radius: 1, quadSize: 1, gain: 1, boil: 0, fade: 1, seed: 0 };
     this._collarState = { gain: 1, boil: 0, fade: 1, seed: 0 };
     this._fumeState = { width: 1, height: 1, strength: 0, boil: 0, seed: 0 };
+
+    /**
+     * Every body the pool has hold of: one slot each, `_meltCount` of them
+     * live. A fixed pool, so a bloom standing over a crowd allocates nothing.
+     */
+    this._melts = [];
+    for (let i = 0; i < MAX_MELTS; i++) this._melts.push({ dummy: null, time: 0, eaten: 0 });
+    this._meltCount = 0;
+    /** Reused by `DummyField#findBodies`, so polling allocates nothing. */
+    this._found = [];
+    /** The blow, refilled from the live settings each frame. Zero by default. */
+    this._force = { impulse: 0, lift: 0, spin: 0 };
   }
 
   createParticles() {
@@ -366,6 +403,7 @@ export class AcidAbility extends Ability {
   /* ------------------------------------------------------------------ */
 
   onSpawn() {
+    this._releaseMelts();
     this.bubbleEmitter.reset();
     this.moteEmitter.reset();
     this.fogEmitter.reset();
@@ -899,6 +937,150 @@ export class AcidAbility extends Ability {
   }
 
   /* ------------------------------------------------------------------ */
+  /* What it does to a body                                              */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Take everything the pool touches off its feet, then take it apart.
+   *
+   * Polled every frame rather than resolved once when the bloom opens, because
+   * a body can arrive *after* it: one thrown across the boundary by another
+   * cast has to start going on the frame it lands in the acid, not be ignored
+   * for the rest of the aura's life. Corpses count too — `findBodies` returns
+   * what is already lying there, and a dead body in acid that did not dissolve
+   * would be the one thing on this stage that reads as a rule rather than as
+   * chemistry.
+   *
+   * A body still on its feet is cut loose into the solver first, and *only*
+   * that. `kill` is how a dummy becomes a ragdoll at all, so it still has to be
+   * called, but the force it is called with is zero: `Ragdoll#strike` writes
+   * every joint's velocity out of `impulse`, `lift` and `spin`, so three zeroes
+   * leave the whole body at rest in the pose it was standing in. It goes limp
+   * and falls where it stood, which is the entire difference between a blast
+   * and a solvent. The direction still handed over is *outward*, so that
+   * turning any of the three back up in the editor scatters bodies clear of the
+   * pool rather than into the middle of it.
+   *
+   * From there it is two clocks, and they are deliberately out of step. The
+   * stain runs first and takes the body green while it is still whole; only
+   * after `onset` does `Dummy#consume` start eating it, on a rate the boil owns
+   * — so a corpse goes in the same surges the gas does. A body that went green
+   * *as* it disappeared would not have been dissolved by anything.
+   *
+   * Nothing is ever handed back. A body the acid has touched keeps going even
+   * if something throws it clear of the circle: the acid went with it. A slot
+   * is dropped when the body has been eaten, when it has finished burning on
+   * its own clock, or when it has been stood back up in a new life — that last
+   * one is what stops a bloom outliving a corpse and staining its replacement.
+   *
+   * @param {number} dt
+   * @param {number} bite 0..1 — how live the pool still is
+   */
+  _melt(dt, bite) {
+    const m = settings.acid.melt;
+    const field = this.ctx.dummies;
+    if (!m.enabled || !field?.findBodies) return;
+
+    this._centrePoint(_centre);
+
+    /* ---- everything standing in it comes down ---- */
+    const reach = this.radius * Math.max(0.05, m.reach);
+    const found = field.findBodies(_centre.x, _centre.z, reach, this._found);
+
+    this._force.impulse = m.impulse;
+    this._force.lift = m.lift;
+    this._force.spin = m.spin;
+
+    for (const dummy of found) {
+      if (this._meltCount >= MAX_MELTS) break;
+      if (this._meltOf(dummy)) continue;
+
+      if (dummy.alive) {
+        const at = dummy.position;
+        _dir.set(at.x - _centre.x, 0, at.z - _centre.z);
+        // A body standing exactly on the point has no outward to be thrown
+        // along, so it takes the cast's own. Never read while the blow is zero.
+        if (_dir.lengthSq() < 1e-6) _dir.copy(this.direction);
+        else _dir.normalize();
+        if (!dummy.kill(_dir.x, _dir.z, this._force)) continue;
+      } else if (!dummy.bodyPoint(_pos)) {
+        // Down, but with no solver behind it — there is nothing here to eat.
+        continue;
+      }
+
+      const slot = this._melts[this._meltCount++];
+      slot.dummy = dummy;
+      slot.time = 0;
+      slot.eaten = 0;
+    }
+
+    /* ---- and then the pool works on them ---- */
+    // The same envelope the gas, the ring and the light are on: the acid eats
+    // in bursts, hardest at the top of a surge, and `boil` is how much of the
+    // rate that surge owns. At 0 it eats at a flat `rate` and the corpses stop
+    // belonging to the aura they are lying in.
+    const surge = Math.max(0, 1 - m.boil + m.boil * this._boil * 1.8);
+    const rate = Math.max(0, m.rate) * surge * saturate(bite);
+
+    for (let i = this._meltCount - 1; i >= 0; i--) {
+      const slot = this._melts[i];
+      const dummy = slot.dummy;
+      // Eaten, burned away on its own clock, or already stood back up.
+      if (!dummy || dummy.finished || dummy.alive) {
+        this._dropMelt(i);
+        continue;
+      }
+
+      slot.time += dt;
+      // The green leads the burn, and it is pushed every frame rather than
+      // once: it is also what carries the live editor colours onto the body.
+      dummy.corrode(saturate(slot.time * Math.max(0, m.stain)), m.look);
+
+      if (slot.time < m.onset) continue;
+      slot.eaten = Math.min(1, slot.eaten + rate * dt);
+      dummy.consume(slot.eaten);
+      if (slot.eaten >= 1) this._dropMelt(i);
+    }
+  }
+
+  /** The slot holding `dummy`, or null. Linear, over at most sixteen. */
+  _meltOf(dummy) {
+    for (let i = 0; i < this._meltCount; i++) {
+      if (this._melts[i].dummy === dummy) return this._melts[i];
+    }
+    return null;
+  }
+
+  /** Let one body go, keeping the live slots packed at the front of the pool. */
+  _dropMelt(index) {
+    const last = this._meltCount - 1;
+    const slot = this._melts[index];
+    slot.dummy = null;
+    slot.time = 0;
+    slot.eaten = 0;
+    this._melts[index] = this._melts[last];
+    this._melts[last] = slot;
+    this._meltCount = last;
+  }
+
+  /**
+   * Drop every body.
+   *
+   * Nothing is restored to them on the way out — unlike a tide, this ability
+   * never took anything away from them. A corpse it had started on finishes
+   * burning on the natural clock `Dummy#update` is already running underneath.
+   */
+  _releaseMelts() {
+    for (let i = 0; i < this._meltCount; i++) {
+      const slot = this._melts[i];
+      slot.dummy = null;
+      slot.time = 0;
+      slot.eaten = 0;
+    }
+    this._meltCount = 0;
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Phases                                                              */
   /* ------------------------------------------------------------------ */
 
@@ -1028,10 +1210,15 @@ export class AcidAbility extends Ability {
     this.position.y = Math.max(0.25, this.mistHeight * saturate(c.lightHeight));
 
     this._auraFx(dt, fade * (t <= 1 ? 1 : 0.3));
+    // After the passes, so the bodies are worked on with the boil this frame
+    // was actually drawn with — and after `_sync`, which is what resolved the
+    // footprint they are tested against.
+    this._melt(dt, fade);
     this.ctx.shake.rumble(c.holdShake * fade * settings.global.cameraShake, dt);
   }
 
   onDestroy() {
+    this._releaseMelts();
     this.pool.visible = false;
     this.mist.visible = false;
     this.ring.visible = false;

@@ -198,6 +198,17 @@ export class Dummy {
      * away on its own schedule if whatever was eating it lets go.
      */
     this._consumed = 0;
+    /**
+     * How far something has stained this body, 0..1, and the look it is being
+     * stained with — see `corrode`.
+     *
+     * Kept apart from `_consumed` for the same reason that is kept apart from
+     * `dissolve`: the colour and the burn are two clocks. Acid turns a body
+     * green while it is still whole, and a body it has finished with has to
+     * stay green while the natural burn takes what is left of it.
+     */
+    this._corroded = 0;
+    this._corrodeLook = null;
     /** True once the body has been parted, which is what makes it two of them. */
     this.sliced = false;
     /** True once it has gone under a surface — see `sink`. Latches the shadow off. */
@@ -633,12 +644,19 @@ export class Dummy {
   _syncMaterials() {
     const look = settings.dummies.look;
     const cut = settings.slice;
+    // What is eating this body, and how far it has got. Every colour below is
+    // the authored one lerped that far toward the stain's, so a body halfway
+    // through going is halfway between the two — and one nothing has touched
+    // pays for a single comparison.
+    const eaten = this._corrodeLook;
+    const stain = eaten ? this._corroded : 0;
 
     for (const part of this.parts) {
       for (const material of part.materials) {
         material.color.copy(getColor(look.color));
         material.roughness = look.roughness;
         material.metalness = look.metalness;
+        if (stain > 0) material.color.lerp(getColor(eaten.color), stain);
       }
 
       const u = part.uniforms;
@@ -647,7 +665,17 @@ export class Dummy {
       u.uRimEmissive.value = look.rimEmissive;
       u.uEdgeColor.value.copy(getColor(look.edgeColor));
       u.uEdgeEmissive.value = look.edgeEmissive;
-      u.uEdgeWidth.value = look.edgeWidth;
+      if (stain > 0) {
+        // The rim and the burn edge are the two things anybody actually reads
+        // the body's state off at fifteen metres, so they are what has to
+        // carry the colour — the diffuse under them is nearly black either way.
+        u.uRimColor.value.lerp(getColor(eaten.rimColor), stain);
+        u.uRimEmissive.value = MathUtils.lerp(look.rimEmissive, eaten.rimEmissive, stain);
+        u.uEdgeColor.value.lerp(getColor(eaten.edgeColor), stain);
+        u.uEdgeEmissive.value = MathUtils.lerp(look.edgeEmissive, eaten.edgeEmissive, stain);
+      }
+      u.uEdgeWidth.value =
+        stain > 0 ? MathUtils.lerp(look.edgeWidth, eaten.edgeWidth, stain) : look.edgeWidth;
       u.uDetail.value = look.dissolveDetail * this._scale;
       u.uDissolve.value = this.dissolve;
 
@@ -709,6 +737,8 @@ export class Dummy {
     this.timer = 0;
     this.dissolve = 0;
     this._consumed = 0;
+    this._corroded = 0;
+    this._corrodeLook = null;
 
     // Back to the clip, from wherever the last fall left the skeleton.
     if (this.action) {
@@ -930,6 +960,45 @@ export class Dummy {
 
     this.dissolve = Math.max(this.dissolve, this._consumed);
     return this._consumed;
+  }
+
+  /**
+   * Stain the body with whatever is eating it.
+   *
+   * `consume` says how much of a body is gone; this says what colour the rest
+   * of it is while it goes. They are separate calls because they are separate
+   * clocks — the Caustic Bloom turns a body green over half a second and then
+   * spends three taking it apart, and a corpse that went green *as* it
+   * disappeared would not have been dissolved by anything, only recoloured on
+   * its way out.
+   *
+   * Monotonic, like `consume`, and for the same reason: this is polled every
+   * frame by something that may lose its grip, and a body must not visibly
+   * heal. The look is taken from the last caller rather than blended between
+   * them — two things eating one corpse is not a case worth a colour space, and
+   * the loudest one is whichever asked most recently.
+   *
+   * Unlike `consume` this is safe on a body that is still standing. Nothing
+   * calls it that way today, but a poison that stains before it fells would be
+   * the obvious next thing to want, and there is nothing here that a live body
+   * cannot wear.
+   *
+   * @param {number} amount 0..1, how far the stain has taken the body
+   * @param {{color: string, rimColor: string, rimEmissive: number,
+   *          edgeColor: string, edgeEmissive: number}} look what it stains it
+   *   with — settings colours, resolved through `getColor` each frame
+   * @returns {number} how far it is stained, after the monotonic clamp
+   */
+  corrode(amount, look) {
+    if (this.state === 'gone') return this._corroded;
+
+    const want = amount < 0 ? 0 : amount > 1 ? 1 : amount;
+    // The look is refreshed even when the amount is not, so dragging the
+    // corroded colours in the editor moves a body that is already fully
+    // stained — which is the whole point of being able to drag them.
+    this._corrodeLook = look;
+    if (want > this._corroded) this._corroded = want;
+    return this._corroded;
   }
 
   /**
