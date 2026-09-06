@@ -26,7 +26,6 @@ import {
 import { ParticleShape } from '../particles/ParticleSystem.js';
 import { RateEmitter } from '../particles/ParticleEngine.js';
 import { DecalType } from '../effects/GroundDecals.js';
-import { BurstMode } from '../effects/BurstSphere.js';
 import { LAYER } from '../core/Layers.js';
 import { frame } from '../core/FrameUniforms.js';
 import { settings } from '../config/settings.js';
@@ -1330,19 +1329,6 @@ export class CelestialRendAbility extends Ability {
 
     this._handPoint(_pos);
 
-    this.ctx.bursts.spawn(BurstMode.AIR, _pos, {
-      radius: c.muzzleSize * 0.25,
-      endRadius: c.muzzleSize * g.explosionIntensity,
-      life: 0.3,
-      intensity: c.muzzleIntensity,
-      opacity: 0.5,
-      fresnel: 2.2,
-      displace: 0.4,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
-
     _emit.position = _pos;
     _emit.radius = 0.4;
     _emit.direction = _dir.copy(this.direction);
@@ -1432,20 +1418,6 @@ export class CelestialRendAbility extends Ability {
     const time = frame.uTime.value;
 
     const centre = this._centrePoint(_centre);
-
-    this.ctx.bursts.spawn(BurstMode.AIR, centre, {
-      radius: c.markBurst * 0.2,
-      endRadius: c.markBurst * g.explosionIntensity,
-      life: 0.42,
-      intensity: c.markIntensity,
-      opacity: 0.35,
-      fresnel: 2.6,
-      displace: 0.35,
-      squash: 0.55, // flattened: pressure spreading over the floor
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
 
     this.ctx.decals.spawn(DecalType.SHOCKWAVE, centre, {
       radius: this.radius * 1.25 * g.explosionIntensity,
@@ -1560,21 +1532,6 @@ export class CelestialRendAbility extends Ability {
     const centre = this._centrePoint(_centre);
     const radius = this.radius;
 
-    /* the shell that leaves the mark */
-    this.ctx.bursts.spawn(BurstMode.AIR, _pos.set(centre.x, 0.6, centre.z), {
-      radius: radius * 0.3,
-      endRadius: radius * c.rendBurst * g.explosionIntensity,
-      life: 0.55,
-      intensity: c.rendIntensity,
-      opacity: 0.4,
-      fresnel: 2.4,
-      displace: 0.5,
-      squash: 0.62,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
-
     /* the ring that snaps out across the floor, past the boundary */
     this.ctx.decals.spawn(DecalType.SHOCKWAVE, centre, {
       radius: c.shockRadius * g.explosionIntensity,
@@ -1585,16 +1542,11 @@ export class CelestialRendAbility extends Ability {
       colorB: getColor(c.colorSigilLine)
     });
 
-    /* and the floor splitting under it */
-    this.ctx.decals.spawn(DecalType.CRACK, centre, {
-      radius: radius * c.crackRadius,
-      life: c.crackLife,
-      intensity: c.crackIntensity,
-      growth: 0.35,
-      colorA: getColor(c.colorCrack),
-      colorB: getColor(c.colorCrackEdge),
-      height: 0.014
-    });
+    // No fracture decal under it. The mark's own splits (`sigilCracks`) already
+    // cut the floor for as long as the cascade stands, and a pooled CRACK decal
+    // outlives them by seconds: what it leaves behind is a brown radial star
+    // lying on the stone long after the light has gone, which reads as a texture
+    // someone forgot to clear rather than as damage.
 
     this.ctx.decals.spawn(DecalType.DUSTRING, centre, {
       radius: radius * 1.5,
@@ -1896,19 +1848,6 @@ export class CelestialRendAbility extends Ability {
 
     const at = dummy.bodyPoint(_at) ?? dummy.position;
     _pos.copy(at);
-
-    this.ctx.bursts.spawn(BurstMode.AIR, _pos, {
-      radius: 0.12,
-      endRadius: c.judge.takenBurst * g.explosionIntensity,
-      life: 0.32,
-      intensity: 1.6,
-      opacity: 0.3,
-      fresnel: 2.8,
-      displace: 0.4,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
 
     _emit.position = _pos;
     _emit.radius = 0.3;

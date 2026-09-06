@@ -2821,7 +2821,6 @@ export class Editor {
     R(cut, c, 'cutMotes', 0, 300, 1, 'motes');
     R(cut, c, 'cutChips', 0, 150, 1, 'chips');
     R(cut, c, 'cutSpeed', 0, 20, 0.1, 'spray speed');
-    R(cut, c, 'cutBurst', 0, 4, 0.01, 'pressure shell (m)');
     R(cut, c, 'cutShake', 0, 1, 0.005, 'shake');
     R(cut, c, 'cutFlash', 0, 1, 0.005, 'flash');
     R(cut, c, 'grazeSparks', 0, 200, 1, 'sparks off a graze');
@@ -2865,8 +2864,6 @@ export class Editor {
     R(impact, c, 'landMotes', 0, 600, 1, 'motes on landing');
     R(impact, c, 'landSparks', 0, 400, 1, 'sparks on landing');
     R(impact, c, 'landMist', 0, 120, 1, 'mist on landing');
-    R(impact, c, 'landBurst', 0, 10, 0.05, 'landing shell (m)');
-    R(impact, c, 'landIntensity', 0, 5, 0.01, 'landing shell glow');
     R(impact, c, 'landShake', 0, 2, 0.005, 'landing shake');
     R(impact, c, 'landFlash', 0, 1, 0.005, 'landing flash');
     R(impact, c, 'shakeDuration', 0.05, 3, 0.01, 'shake decay (s)');
@@ -2875,8 +2872,6 @@ export class Editor {
     R(impact, c, 'crownChips', 0, 200, 1, 'chips as it forms');
     R(impact, c, 'crownShake', 0, 1, 0.005, 'forming shake');
     R(impact, c, 'crownFlash', 0, 1, 0.005, 'forming flash');
-    R(impact, c, 'muzzleSize', 0, 4, 0.01, 'hand flash (m)');
-    R(impact, c, 'muzzleIntensity', 0, 5, 0.01, 'hand flash glow');
     R(impact, c, 'castFlash', 0, 1, 0.005, 'cast flash');
     R(impact, c, 'holdShake', 0, 0.4, 0.001, 'standing rumble');
     R(impact, c, 'rumble', 0, 0.4, 0.001, 'travel rumble');
@@ -2885,9 +2880,6 @@ export class Editor {
     R(impact, c, 'stainIntensity', 0, 3, 0.01, 'stain intensity');
     impact.addColor(c, 'colorStain').name('stain');
     impact.addColor(c, 'colorStainEdge').name('stain edge');
-    impact.addColor(c, 'colorBurstA').name('burst core');
-    impact.addColor(c, 'colorBurstB').name('burst mid');
-    impact.addColor(c, 'colorBurstC').name('burst edge');
     impact.addColor(c, 'colorCastFlash').name('cast flash colour');
     impact.addColor(c, 'colorFlash').name('flash colour');
 
@@ -3235,10 +3227,6 @@ export class Editor {
     const impact = folder.addFolder('Cast, mark, strikes & rend');
     R(impact, c, 'castMotes', 0, 400, 1, 'cast motes');
     R(impact, c, 'castFlash', 0, 1, 0.01, 'cast flash');
-    R(impact, c, 'muzzleSize', 0, 4, 0.05, 'muzzle size');
-    R(impact, c, 'muzzleIntensity', 0, 4, 0.05, 'muzzle intensity');
-    R(impact, c, 'markBurst', 0, 8, 0.05, 'mark burst');
-    R(impact, c, 'markIntensity', 0, 4, 0.05, 'mark burst intensity');
     R(impact, c, 'markMotes', 0, 600, 5, 'mark motes');
     R(impact, c, 'markShake', 0, 2, 0.01, 'mark shake');
     R(impact, c, 'markFlash', 0, 1, 0.01, 'mark flash');
@@ -3247,12 +3235,7 @@ export class Editor {
     R(impact, c, 'strikeSparks', 0, 120, 1, 'sparks / shard');
     R(impact, c, 'strikeChips', 0, 60, 1, 'chips / shard');
     R(impact, c, 'strikeShake', 0, 0.5, 0.005, 'shake / shard');
-    R(impact, c, 'rendBurst', 0, 6, 0.05, 'rend burst, x footprint');
-    R(impact, c, 'rendIntensity', 0, 5, 0.05, 'rend burst intensity');
     R(impact, c, 'shockRadius', 1, 50, 0.5, 'shock ring (m)');
-    R(impact, c, 'crackRadius', 0.2, 6, 0.05, 'cracks, x footprint');
-    R(impact, c, 'crackLife', 0.5, 30, 0.5, 'crack life');
-    R(impact, c, 'crackIntensity', 0, 3, 0.01, 'crack intensity');
     R(impact, c, 'rendSparks', 0, 2000, 10, 'rend sparks');
     R(impact, c, 'rendMotes', 0, 1500, 10, 'rend motes');
     R(impact, c, 'rendChips', 0, 800, 5, 'rend chips');
@@ -3262,15 +3245,10 @@ export class Editor {
     R(impact, c, 'rendFlash', 0, 1.5, 0.01, 'rend flash');
     R(impact, c, 'rumble', 0, 0.5, 0.005, 'travel rumble');
     R(impact, c, 'holdShake', 0, 0.5, 0.005, 'standing rumble');
-    impact.addColor(c, 'colorBurstA').name('burst core');
-    impact.addColor(c, 'colorBurstB').name('burst mid');
-    impact.addColor(c, 'colorBurstC').name('burst edge');
     impact.addColor(c, 'colorCastFlash').name('cast flash colour');
     impact.addColor(c, 'colorFlash').name('rend flash colour');
     impact.addColor(c, 'colorGild').name('gilding');
     impact.addColor(c, 'colorGildEdge').name('gilding edge');
-    impact.addColor(c, 'colorCrack').name('crack');
-    impact.addColor(c, 'colorCrackEdge').name('crack edge');
 
     /* ---- the judgment ---- */
     const judge = folder.addFolder('The judgment (what it does to a body)');
@@ -3288,7 +3266,6 @@ export class Editor {
     R(judge, j, 'burnMotes', 0, 400, 1, 'burning motes / s');
     R(judge, j, 'condemnSparks', 0, 200, 1, 'sparks as it falls');
     R(judge, j, 'condemnRing', 0, 4, 0.05, 'ring at its feet (m)');
-    R(judge, j, 'takenBurst', 0, 4, 0.05, 'burst as it goes');
     R(judge, j, 'takenMotes', 0, 400, 1, 'motes as it goes');
     R(judge, j, 'takenShake', 0, 1, 0.005, 'shake as it goes');
 

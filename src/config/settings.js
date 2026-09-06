@@ -3654,7 +3654,6 @@ export const settings = {
     cutMotes: 70,
     cutChips: 26,
     cutSpeed: 5.2,
-    cutBurst: 0.62, // metres the pressure shell over the wound opens to
     cutShake: 0.18,
     cutFlash: 0.12,
     grazeSparks: 34, // ... and what a non-lethal blade draws off it
@@ -3716,8 +3715,6 @@ export const settings = {
     landMotes: 120, // ... and the gout as it lands
     landSparks: 70,
     landMist: 16,
-    landBurst: 2.4, // the shell the mark throws as it opens
-    landIntensity: 1.5,
     landShake: 0.3,
     landFlash: 0.2,
     shakeDuration: 0.5,
@@ -3727,8 +3724,6 @@ export const settings = {
     crownShake: 0.2,
     crownFlash: 0.22,
 
-    muzzleSize: 0.5, // the flash at the caster's hand
-    muzzleIntensity: 1.4,
     castFlash: 0.1,
     holdShake: 0.035, // the standing rumble
     rumble: 0.03, // ... and the one while the shard is running
@@ -3775,9 +3770,6 @@ export const settings = {
     colorHaloInner: '#9ffff0',
     colorHaloOuter: '#166b7d',
 
-    colorBurstA: '#dffffa',
-    colorBurstB: '#3fd8cc',
-    colorBurstC: '#123a48',
     colorCastFlash: '#a8fff0',
     colorFlash: '#d8fffa',
     lightColor: '#3ff0e0'
@@ -4190,10 +4182,6 @@ export const settings = {
     /* --- the cast, the mark, the strikes and the rend --- */
     castMotes: 60,
     castFlash: 0.06,
-    muzzleSize: 0.85,
-    muzzleIntensity: 1.5,
-    markBurst: 2.4, // the shell the mark throws as it lands
-    markIntensity: 1.4,
     markMotes: 90,
     markShake: 0.16,
     markFlash: 0.09,
@@ -4202,12 +4190,7 @@ export const settings = {
     strikeSparks: 16, // per shard that lands
     strikeChips: 5,
     strikeShake: 0.035,
-    rendBurst: 2.1, // the shell the detonation throws, × the footprint
-    rendIntensity: 1.9,
     shockRadius: 14.0, // how far the ring runs, metres
-    crackRadius: 1.6, // the split floor, × the footprint
-    crackLife: 9.0,
-    crackIntensity: 0.5,
     rendSparks: 420, // gold thrown straight up the shaft
     rendMotes: 260, // ... and out along the floor with the ring
     rendChips: 160,
@@ -4217,15 +4200,10 @@ export const settings = {
     rendFlash: 0.4,
     rumble: 0.04, // continuous shake while the mote travels
     holdShake: 0.05, // ... and while the column stands
-    colorBurstA: '#fff6dc',
-    colorBurstB: '#ffc86a',
-    colorBurstC: '#ff8f34',
     colorCastFlash: '#ffd79a',
     colorFlash: '#ffe6b8',
     colorGild: '#1a1206',
     colorGildEdge: '#5a3a12',
-    colorCrack: '#ffb24a',
-    colorCrackEdge: '#3a2410',
 
     /* --- what the rend does to a body --- */
     /**
@@ -4258,7 +4236,6 @@ export const settings = {
       burnMotes: 90, // ... and what comes off it while it goes
       condemnSparks: 30, // the frame its legs go out from under it
       condemnRing: 0.9, // the ring of light closing on that spot, metres
-      takenBurst: 1.1, // and the flare as it finishes
       takenMotes: 90,
       takenShake: 0.07
     },

@@ -19,7 +19,6 @@ import { createCascadeWispMaterial } from '../materials/CascadeWispMaterial.js';
 import { ParticleShape } from '../particles/ParticleSystem.js';
 import { RateEmitter } from '../particles/ParticleEngine.js';
 import { DecalType } from '../effects/GroundDecals.js';
-import { BurstMode } from '../effects/BurstSphere.js';
 import { LAYER } from '../core/Layers.js';
 import { frame } from '../core/FrameUniforms.js';
 import { settings } from '../config/settings.js';
@@ -1242,19 +1241,6 @@ export class BalefulCascadeAbility extends Ability {
 
     this._handPoint(_pos);
 
-    this.ctx.bursts.spawn(BurstMode.FROST, _pos, {
-      radius: c.muzzleSize * 0.25,
-      endRadius: c.muzzleSize * g.explosionIntensity,
-      life: 0.3,
-      intensity: c.muzzleIntensity,
-      opacity: 0.65,
-      fresnel: 1.9,
-      displace: 0.5,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
-
     _emit.position = _pos;
     _emit.radius = 0.16;
     _emit.direction = _dir.copy(this.direction);
@@ -1438,22 +1424,6 @@ export class BalefulCascadeAbility extends Ability {
     _emit.spin = c.chipSpin;
     this.chips.emit(Math.round(c.cutChips * g.particleCount), _emit);
 
-    // Small, brief and barely there. A wound is a *line*, and a shell around it
-    // at any size the eye can measure reads as a bubble the body is standing
-    // in. What sells the cut is what comes out of it, not a dome over it.
-    this.ctx.bursts.spawn(BurstMode.AIR, _pos, {
-      radius: 0.1,
-      endRadius: c.cutBurst * g.explosionIntensity,
-      life: 0.22,
-      intensity: 1.3,
-      opacity: 0.22,
-      fresnel: 3.0,
-      displace: 0.5,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
-
     this.ctx.shake.add(c.cutShake * g.explosionIntensity * g.cameraShake, 5.0, 24);
     this.ctx.flash.trigger(getColor(c.colorFlash), c.cutFlash * g.explosionIntensity);
     this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * 0.5 * g.explosionIntensity);
@@ -1608,21 +1578,6 @@ export class BalefulCascadeAbility extends Ability {
 
     const centre = this._centrePoint(_centre);
 
-    /* the shell the mark throws as it opens */
-    this.ctx.bursts.spawn(BurstMode.FROST, centre, {
-      radius: c.landBurst * 0.2,
-      endRadius: c.landBurst * g.explosionIntensity,
-      life: 0.45,
-      intensity: c.landIntensity,
-      opacity: 0.4,
-      fresnel: 2.4,
-      displace: 0.4,
-      squash: 0.5, // flattened: pressure spreading over the floor
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
-
     /* the ring that snaps outward across the floor, past the boundary */
     this.ctx.decals.spawn(DecalType.SHOCKWAVE, centre, {
       radius: this.radius * 1.3 * g.explosionIntensity,
@@ -1732,19 +1687,6 @@ export class BalefulCascadeAbility extends Ability {
     const time = frame.uTime.value;
 
     _crown.copy(this._crownAt);
-
-    this.ctx.bursts.spawn(BurstMode.AIR, _crown, {
-      radius: 0.3,
-      endRadius: c.crownScale * 2.4 * g.explosionIntensity,
-      life: 0.5,
-      intensity: 1.7,
-      opacity: 0.42,
-      fresnel: 2.2,
-      displace: 0.35,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
 
     _emit.position = _crown;
     _emit.radius = c.crownScale * 0.8;

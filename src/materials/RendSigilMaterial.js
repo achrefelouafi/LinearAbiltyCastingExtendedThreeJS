@@ -315,14 +315,29 @@ const SIGIL_FRAGMENT = /* glsl */ `
       // is a wedge rather than a hairline.
       float across = abs(sin(local)) * r;
       float seat = uRadius * uCrackSeat;
-      float along = smoothstep(0.0, 0.25, r / max(seat, 0.05)) *
-                    (1.0 - smoothstep(0.55, 1.0, r / max(seat, 0.05)));
+      float rn = r / max(seat, 0.05);
+      float along = smoothstep(0.0, 0.3, rn) * (1.0 - smoothstep(0.4, 1.0, rn));
       float open2 = uCrackWidth * uRadius * (0.25 + 0.75 * along);
-      float split = (1.0 - smoothstep(open2 * 0.35, open2, across)) * along;
+
+      // **Shaded across its own width, not filled.** A flat top with a short
+      // ramp on it is a slab, and every additive term here goes through a soft
+      // ceiling that crushes the top of its range — so a slab loses its ramp in
+      // the clip and the arm comes out as a hard-edged white blade lying on the
+      // floor, which reads as an unsmoothed polygon rather than as light. A
+      // squared linear falloff has no flat part at all: a ridge down the
+      // centreline, and zero value *and* zero slope at the edge, so the arm has
+      // a round section and no silhouette of its own to alias against.
+      float t = clamp(across / max(open2, 1e-4), 0.0, 1.0);
+      float profile = (1.0 - t) * (1.0 - t);
+      // ... and faded out where an arm has outgrown a pixel, or its far end
+      // resolves into speckle at the grazing angles this mark is mostly seen at.
+      float split = profile * along * clamp(open2 / max(mpp, 1e-6), 0.0, 1.0);
       // Eaten by noise so no two arms are the same length.
       split *= 0.55 + 0.45 * snoise01(vec3(p * 1.1, uSeed * 3.0));
-      lines += split * uCracks * uShatter;
-      cores += split * uCracks * uShatter * 0.5;
+      lines += split * 1.5 * uCracks * uShatter;
+      // The hot middle is squared again, so the white stays on the ridge instead
+      // of flooding the whole width and taking the falloff with it.
+      cores += split * split * uCracks * uShatter * 0.5;
     }
 
     /* ---- the wash inside it all ---- */
