@@ -8,8 +8,8 @@ import { saturate, Easing } from '../utils/math.js';
 /**
  * One broken floor plate, owned by the cast that made it.
  *
- * Deliberately *not* a global pooled system like `DecalSystem` or
- * `FissureSystem`: a Venom Surge makes exactly one plate, at the impact, and
+ * Deliberately *not* a global pooled system like `DecalSystem`: a Venom Surge
+ * makes exactly one plate, at the impact, and
  * hanging it off the ability means it is recycled by the ability pool for free
  * and `core/App.js` never hears about it.
  *

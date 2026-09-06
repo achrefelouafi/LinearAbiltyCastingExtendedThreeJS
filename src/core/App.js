@@ -21,7 +21,6 @@ import { AimController } from '../input/AimController.js';
 import { ParticleEngine } from '../particles/ParticleEngine.js';
 import { LightPool } from '../effects/LightPool.js';
 import { DecalSystem } from '../effects/GroundDecals.js';
-import { FissureSystem } from '../effects/GroundFissures.js';
 import { BurstSystem } from '../effects/BurstSphere.js';
 import { CameraShake } from '../effects/CameraShake.js';
 import { ScreenFlash } from '../effects/ScreenFlash.js';
@@ -83,7 +82,6 @@ export class App {
     this.particles = new ParticleEngine(this.scene);
     this.lights = new LightPool(this.scene);
     this.decals = new DecalSystem(this.scene);
-    this.fissures = new FissureSystem(this.scene);
     this.bursts = new BurstSystem(this.scene);
     this.shake = new CameraShake(this.rig);
     this.flash = new ScreenFlash();
@@ -112,7 +110,6 @@ export class App {
       particles: this.particles,
       lights: this.lights,
       decals: this.decals,
-      fissures: this.fissures,
       bursts: this.bursts,
       shake: this.shake,
       flash: this.flash,
@@ -250,7 +247,6 @@ export class App {
     this.abilities.clear();
     this.particles.reset();
     this.decals.clear();
-    this.fissures.clear();
     this.bursts.clear();
     this.lights.reset();
     this.shake.reset();
@@ -363,7 +359,6 @@ export class App {
     this.dummies.applyHits(this.abilities.active);
     this.particles.flush();
     this.decals.update(dt);
-    this.fissures.update(dt);
     this.bursts.update(dt);
     this.lights.update(dt);
 
@@ -406,7 +401,6 @@ export class App {
     this.abilities.dispose();
     this.particles.dispose();
     this.decals.dispose();
-    this.fissures.dispose();
     this.bursts.dispose();
     this.lights.dispose();
     this.dummies.dispose();

@@ -2,7 +2,7 @@
   "name": "casting-abilities",
   "version": "1.0.0",
   "private": true,
-  "description": "Fully procedural ice-eruption ability with a MOBA-style ground aim indicator, built with Three.js, custom GLSL and a real-time VFX editor.",
+  "description": "Ten fully procedural abilities with a MOBA-style ground aim indicator, built with Three.js, custom GLSL and a real-time VFX editor.",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -26,7 +26,7 @@ export class HUD {
     root.innerHTML = `
       <div class="hud__panel hud__title">
         Elemental Sandbox
-        <span data-blurb>Press Q, E, R, F, V, X, B, Z, N, K or J, aim, click to cast.</span>
+        <span data-blurb>Press Q, E, R, F, V, X, B, Z, N or K, aim, click to cast.</span>
       </div>
 
       <div class="hud__panel hud__stats">
@@ -37,16 +37,14 @@ export class HUD {
       </div>
 
       <div class="hud__panel hud__help">
-        <div><strong>Q</strong> — Frost Lance &nbsp; <strong>E</strong> — Storm Lance</div>
-        <div><strong>R</strong> — Cinder Fall &nbsp; <strong>F</strong> — Nova Beam</div>
-        <div><strong>V</strong> — Voltaic Snare &nbsp; <strong>X</strong> — Glacial Crown</div>
-        <div><strong>B</strong> — Volcanic Horror Ward &nbsp; <strong>Z</strong> — Caustic Bloom</div>
-        <div><strong>N</strong> — Arborist's Growth &nbsp; <strong>K</strong> — Cyber Serpent</div>
-        <div><strong>J</strong> — Crystallized Venom Surge</div>
-        <div><strong>M</strong> — Brutalist Earth Blast</div>
-        <div><strong>L</strong> — Ink-paint Water Zone</div>
-        <div><strong>U</strong> — Astral Void Blast &nbsp; <strong>Y</strong> — Baleful Cascade</div>
-        <div class="hud__help-note">V, X, B, Z, N, L, U and Y are far casts — aimed with a circle, not an arrow.</div>
+        <div><strong>Q</strong> — Volcanic Horror Ward &nbsp; <strong>E</strong> — Caustic Bloom</div>
+        <div><strong>R</strong> — Arborist's Growth &nbsp; <strong>F</strong> — Cyber Serpent</div>
+        <div><strong>V</strong> — Crystallized Venom Surge</div>
+        <div><strong>X</strong> — Brutalist Earth Blast</div>
+        <div><strong>B</strong> — Ink-paint Water Zone</div>
+        <div><strong>Z</strong> — Astral Void Blast &nbsp; <strong>N</strong> — Baleful Cascade</div>
+        <div><strong>K</strong> — Celestial Rend</div>
+        <div class="hud__help-note">Q, E, R, B, Z, N and K are far casts — aimed with a circle, not an arrow.</div>
         <div><strong>Move</strong> — aim &nbsp; <strong>Left click</strong> — cast</div>
         <div><strong>Esc / right click</strong> — cancel the cast</div>
         <div><strong>Right drag</strong> — orbit &nbsp; <strong>Scroll</strong> — zoom</div>

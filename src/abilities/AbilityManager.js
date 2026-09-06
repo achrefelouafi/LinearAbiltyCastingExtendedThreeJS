@@ -1,9 +1,3 @@
-import { IceAbility } from './IceAbility.js';
-import { ThunderAbility } from './ThunderAbility.js';
-import { MeteorAbility } from './MeteorAbility.js';
-import { BeamAbility } from './BeamAbility.js';
-import { SnareAbility } from './SnareAbility.js';
-import { GlacierAbility } from './GlacierAbility.js';
 import { WardAbility } from './WardAbility.js';
 import { AcidAbility } from './AcidAbility.js';
 import { ArborBloomAbility } from './ArborBloomAbility.js';
@@ -19,12 +13,6 @@ import { ObjectPool } from '../utils/ObjectPool.js';
 
 /** Registry: adding an ability means adding one line here. */
 const ABILITY_TYPES = {
-  ice: IceAbility,
-  thunder: ThunderAbility,
-  meteor: MeteorAbility,
-  beam: BeamAbility,
-  snare: SnareAbility,
-  glacier: GlacierAbility,
   ward: WardAbility,
   acid: AcidAbility,
   growth: ArborBloomAbility,

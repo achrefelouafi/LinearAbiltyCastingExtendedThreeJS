@@ -111,25 +111,6 @@ export class InputManager extends EventEmitter {
       case 'Digit0':
         this.emit('action', 'ability', 9);
         break;
-      // Past the digit row now — the eleventh slot is letter-only.
-      case 'KeyJ':
-        this.emit('action', 'ability', 10);
-        break;
-      case 'KeyM':
-        this.emit('action', 'ability', 11);
-        break;
-      case 'KeyL':
-        this.emit('action', 'ability', 12);
-        break;
-      case 'KeyU':
-        this.emit('action', 'ability', 13);
-        break;
-      case 'KeyY':
-        this.emit('action', 'ability', 14);
-        break;
-      case 'KeyI':
-        this.emit('action', 'ability', 15);
-        break;
       case 'Escape':
         this.emit('action', 'cancel');
         break;

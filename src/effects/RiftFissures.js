@@ -24,18 +24,17 @@ import { clamp, saturate, lerp, randRange, Easing } from '../utils/math.js';
  * ribbons that hug the ground: a **dark interior** with a graded depth, and a
  * **pale lip** of powdered stone thrown out along both edges.
  *
- * ## Why this is not the molten fissure system
+ * ## Why this is not a molten fissure system
  *
- * `effects/GroundFissures.js` already walks a crack network across the floor,
- * and the walk here is deliberately the same algorithm — an arm that veers as it
- * advances and sheds forked branches is what separates a crack from a star of
- * spokes, and that was solved once. Everything downstream of the walk is
- * different. That system is a *molten* crack: two additive passes, a white-hot
- * core, an orange underglow painting light onto the stone around it, and its
- * whole configuration comes out of `settings.meteor`. A brutalist blast emits no
- * light at all. Its cracks are visible for the opposite reason — they are the
- * only thing on the floor *darker* than the floor, and what makes them read at a
- * distance is the pale rim of dust beside the dark, not any glow inside it.
+ * The obvious way to crack a floor is the one the fire abilities used: an arm
+ * that veers as it advances and sheds forked branches — that is what separates a
+ * crack from a star of spokes, and the walk below is deliberately that same
+ * algorithm. Everything downstream of the walk is different. A *molten* crack is
+ * two additive passes, a white-hot core and an orange underglow painting light
+ * onto the stone around it. A brutalist blast emits no light at all. Its cracks
+ * are visible for the opposite reason — they are the only thing on the floor
+ * *darker* than the floor, and what makes them read at a distance is the pale rim
+ * of dust beside the dark, not any glow inside it.
  *
  * So: one pass, normal blending, and the two colours are a near-black and a
  * bone grey. Trying to express that through the molten shader's uniforms would
