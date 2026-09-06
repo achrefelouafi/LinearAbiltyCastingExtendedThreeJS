@@ -49,6 +49,7 @@ export class Editor {
     this._buildInk();
     this._buildAstral();
     this._buildCascade();
+    this._buildRend();
     this._buildEnvironment();
     this._buildPost();
     this._buildCamera();
@@ -2824,7 +2825,7 @@ export class Editor {
     R(rise, c, 'riseTime', 0.02, 1.2, 0.005, 'rise time');
     R(rise, c, 'riseOvershoot', 0, 1, 0.005, 'punch past full height');
     R(rise, c, 'riseStagger', 0, 1, 0.005, 'stagger between neighbours');
-    R(rise, c, 'settle', 0.05, 2, 0.01, 'overshoot damping');
+    R(rise, c, 'settle', 0.05, 2, 0.01, 'drop back onto seat (s)');
     R(rise, c, 'shatterDelay', 0, 3, 0.01, 'wait before they let go');
     R(rise, c, 'sinkTime', 0.1, 4, 0.01, 'withdraw over');
 
@@ -4077,6 +4078,408 @@ export class Editor {
 
     this.cascadeFolder = folder;
   }
+
+  /**
+   * The Celestial Rend.
+   *
+   * Grouped by the four panels of its reference sheet, in the order they
+   * happen — mark, tendrils, shards, then the divine impact split into the
+   * column, the star and the halos — and then by what the rend does to a body.
+   *
+   * Three sliders re-scale the whole thing in proportion and are the ones worth
+   * reaching for first: `zoneRadius` in "The cast" (nearly every horizontal
+   * length is a multiple of it), `pillarHeight` in "4 · The column" (the star,
+   * the halos and the shard ceiling all seat off it), and `chargeTime` in "The
+   * order it happens in", which is the entire pacing of the piece.
+   */
+  _buildRend() {
+    const folder = this.gui.addFolder('✧  Celestial Rend');
+    const c = settings.rend;
+    const R = Editor.range;
+
+    const cast = folder.addFolder('The cast');
+    R(cast, c, 'zoneRadius', 0.5, 14, 0.05, 'footprint radius');
+    R(cast, c, 'range', 2, 50, 0.1, 'max range');
+    R(cast, c, 'minRange', 0, 10, 0.1, 'min range');
+    R(cast, c, 'speed', 5, 200, 1, 'mote speed');
+    R(cast, c, 'lifetime', 0.5, 20, 0.05, 'stands for (s)');
+    R(cast, c, 'fadeTime', 0.05, 6, 0.01, 'closes over (s)');
+    R(cast, c, 'cooldown', 0, 12, 0.05, 'cooldown');
+    R(cast, c, 'handHeight', 0, 2.5, 0.01, 'hand height');
+    R(cast, c, 'handForward', -1, 3, 0.01, 'hand forward');
+    R(cast, c, 'handSide', -2, 2, 0.01, 'hand side');
+    R(cast, c, 'trailMotes', 0, 200, 1, 'trail motes / m');
+    R(cast, c, 'seedStarSize', 0, 1.5, 0.01, 'seed star, x footprint');
+    R(cast, c, 'seedHeight', 0.2, 8, 0.05, 'seed height (m)');
+    Editor.castAnimation(cast, c);
+
+    const order = folder.addFolder('The order it happens in');
+    R(order, c, 'sigilTime', 0.02, 3, 0.01, 'mark writes on over (s)');
+    R(order, c, 'tendrilDelay', 0, 3, 0.01, 'tendrils start at (s)');
+    R(order, c, 'tendrilTime', 0.05, 4, 0.01, 'tendrils rise over (s)');
+    R(order, c, 'chargeTime', 0.1, 6, 0.01, 'shards come in over (s)');
+    R(order, c, 'rendTime', 0.05, 3, 0.01, 'the rend takes (s)');
+    R(order, c, 'pillarRise', 0.02, 3, 0.01, 'beam climbs in (s)');
+    R(order, c, 'pulseRate', 0, 6, 0.01, 'toll rate');
+    R(order, c, 'pulseDepth', 0, 1.5, 0.01, 'toll depth');
+
+    /* ---- 1 ---- */
+    const sigil = folder.addFolder('1 · The celestial mark');
+    R(sigil, c, 'sigilHeight', 0.001, 0.2, 0.001, 'hover (m)');
+    R(sigil, c, 'sigilLineWidth', 0.004, 0.2, 0.002, 'stroke width (m)');
+    R(sigil, c, 'sigilLineGlow', 0, 6, 0.05, 'stroke glow');
+    R(sigil, c, 'sigilOpacity', 0, 2, 0.01, 'opacity');
+    R(sigil, c, 'sigilGlow', 0, 4, 0.01, 'glow');
+
+    const sigilStar = sigil.addFolder('The star');
+    R(sigilStar, c, 'sigilStar', 0, 3, 0.01, 'star');
+    R(sigilStar, c, 'sigilStarPoints', 2, 12, 1, 'points');
+    R(sigilStar, c, 'sigilStarOuter', 0.2, 2, 0.01, 'reach, x footprint');
+    R(sigilStar, c, 'sigilStarSharp', 0.2, 8, 0.05, 'point sharpness');
+    R(sigilStar, c, 'sigilStarSpin', -0.2, 0.2, 0.001, 'spin (rev/s)');
+    R(sigilStar, c, 'sigilStarFill', 0, 2, 0.01, 'fill');
+    R(sigilStar, c, 'sigilStarInner', 0, 3, 0.01, 'inner star');
+    R(sigilStar, c, 'sigilStarInnerScale', 0.05, 1, 0.01, 'inner scale');
+
+    const sigilRings = sigil.addFolder('The ring nest');
+    R(sigilRings, c, 'sigilRings', 0, 3, 0.01, 'rings');
+    R(sigilRings, c, 'sigilRingCount', 1, 8, 1, 'how many');
+    R(sigilRings, c, 'sigilRingInner', 0.02, 1.5, 0.01, 'innermost, x footprint');
+    R(sigilRings, c, 'sigilRingSpread', 0, 1.5, 0.01, 'spread past it');
+    R(sigilRings, c, 'sigilRingWobble', 0, 0.12, 0.002, 'boundary wander');
+    R(sigilRings, c, 'sigilRingWobbleLobes', 1, 16, 1, 'wander lobes');
+
+    const sigilMarks = sigil.addFolder('Glyphs, ticks & cracks');
+    R(sigilMarks, c, 'sigilGlyphs', 0, 3, 0.01, 'glyphs');
+    R(sigilMarks, c, 'sigilGlyphCount', 1, 16, 1, 'how many');
+    R(sigilMarks, c, 'sigilGlyphSeat', 0.05, 1.5, 0.01, 'seat, x footprint');
+    R(sigilMarks, c, 'sigilGlyphSize', 0.01, 0.5, 0.005, 'size, x footprint');
+    R(sigilMarks, c, 'sigilGlyphSpin', -0.2, 0.2, 0.001, 'spin (rev/s)');
+    R(sigilMarks, c, 'sigilTicks', 0, 3, 0.01, 'ticks');
+    R(sigilMarks, c, 'sigilTickCount', 4, 120, 1, 'how many');
+    R(sigilMarks, c, 'sigilTickSeat', 0.2, 2, 0.01, 'seat, x footprint');
+    R(sigilMarks, c, 'sigilTickLength', 0.01, 0.5, 0.005, 'length, x footprint');
+    R(sigilMarks, c, 'sigilTickSpin', -0.2, 0.2, 0.001, 'spin (rev/s)');
+    R(sigilMarks, c, 'sigilCracks', 0, 3, 0.01, 'cracks (after the rend)');
+    R(sigilMarks, c, 'sigilCrackCount', 1, 24, 1, 'how many');
+    R(sigilMarks, c, 'sigilCrackSeat', 0.2, 2.5, 0.01, 'reach, x footprint');
+    R(sigilMarks, c, 'sigilCrackWander', 0, 1.5, 0.01, 'fork off radius');
+    R(sigilMarks, c, 'sigilCrackWidth', 0.005, 0.4, 0.005, 'width, x footprint');
+
+    const sigilWash = sigil.addFolder('Wash & colour');
+    R(sigilWash, c, 'sigilWash', 0, 2, 0.01, 'wash');
+    R(sigilWash, c, 'sigilWashFalloff', 0.05, 6, 0.05, 'wash falloff');
+    R(sigilWash, c, 'sigilGrain', 0, 2, 0.01, 'grain');
+    R(sigilWash, c, 'sigilGrainScale', 0.1, 8, 0.05, 'grain scale');
+    sigilWash.addColor(c, 'colorSigilLine').name('line');
+    sigilWash.addColor(c, 'colorSigilCore').name('core');
+    sigilWash.addColor(c, 'colorSigilDeep').name('deep');
+    sigilWash.addColor(c, 'colorSigilWash').name('wash');
+    sigilWash.addColor(c, 'colorFront').name('writing edge');
+
+    /* ---- 2 ---- */
+    const tendril = folder.addFolder('2 · The astral tendrils');
+    R(tendril, c, 'tendrils', 1, 40, 1, 'how many');
+    R(tendril, c, 'tendrilSeat', 0.05, 2, 0.01, 'seat, x footprint');
+    R(tendril, c, 'tendrilSeatJitter', 0, 1, 0.01, 'seat jitter');
+    R(tendril, c, 'tendrilSpread', 0, 3, 0.01, 'bearing jitter');
+    R(tendril, c, 'tendrilReach', 0.1, 1.5, 0.01, 'climb, x column height');
+    R(tendril, c, 'tendrilCharge', 0.02, 1.5, 0.01, '... before the rend');
+    R(tendril, c, 'tendrilHeightJitter', 0, 1, 0.01, 'height jitter');
+    R(tendril, c, 'tendrilRise', 0, 1.5, 0.005, 'loops / second');
+    R(tendril, c, 'tendrilLength', 0.05, 2, 0.01, 'span of one ribbon');
+    R(tendril, c, 'tendrilWind', 0, 6, 0.05, 'turns over the climb');
+    R(tendril, c, 'tendrilShear', 0, 4, 0.01, 'differential winding');
+    R(tendril, c, 'tendrilCounter', 0, 1, 0.01, 'fraction winding back');
+    R(tendril, c, 'tendrilFlare', 0.02, 2, 0.01, 'seat closes to');
+    R(tendril, c, 'tendrilDraw', 0, 1, 0.01, 'drawn onto the axis');
+    R(tendril, c, 'tendrilDrawAt', 0, 0.98, 0.01, '... starting at');
+    R(tendril, c, 'tendrilWander', 0, 3, 0.01, 'wander (m)');
+    R(tendril, c, 'tendrilWanderScale', 0.1, 6, 0.05, 'wander scale');
+    R(tendril, c, 'tendrilWanderSpeed', 0, 3, 0.01, 'wander speed');
+    R(tendril, c, 'tendrilWidth', 0.002, 0.2, 0.001, 'width, x height');
+    R(tendril, c, 'tendrilWidthBias', 0.05, 3, 0.01, 'thins with climb');
+    R(tendril, c, 'tendrilHead', 0, 3, 0.01, 'the head band');
+    R(tendril, c, 'tendrilHeadWidth', 0.01, 0.5, 0.005, 'head width');
+    R(tendril, c, 'tendrilHeadRate', 0, 3, 0.01, 'head speed');
+    R(tendril, c, 'tendrilIntensity', 0, 6, 0.05, 'intensity');
+    R(tendril, c, 'tendrilSoftEdge', 0.05, 5, 0.05, 'edge softness');
+    R(tendril, c, 'tendrilErode', 0, 1, 0.01, 'erosion');
+    R(tendril, c, 'tendrilErodeScale', 0.1, 10, 0.05, 'erosion scale');
+    R(tendril, c, 'tendrilErodeSpeed', 0, 4, 0.01, 'erosion speed');
+    R(tendril, c, 'tendrilHeadFade', 0, 0.9, 0.01, 'top fade');
+    R(tendril, c, 'tendrilTailFade', 0, 0.9, 0.01, 'root fade');
+    R(tendril, c, 'tendrilSoftFade', 0, 3, 0.01, 'soft particle fade');
+    R(tendril, c, 'tendrilOpacity', 0, 2, 0.01, 'opacity');
+    R(tendril, c, 'tendrilGlow', 0, 4, 0.01, 'glow');
+    tendril.addColor(c, 'colorTendrilRoot').name('root');
+    tendril.addColor(c, 'colorTendrilWarm').name('warm strand');
+    tendril.addColor(c, 'colorTendrilCold').name('cold strand');
+    tendril.addColor(c, 'colorTendrilTip').name('filament / head');
+
+    /* ---- 3 ---- */
+    const shard = folder.addFolder('3 · The radiant shards');
+    R(shard, c, 'shardDensity', 0, 1, 0.01, 'density');
+    R(shard, c, 'shardSize', 0.1, 6, 0.05, 'length (m)');
+    R(shard, c, 'shardGirth', 0.2, 4, 0.05, 'thickness, x that');
+
+    const inbound = shard.addFolder('Coming in');
+    R(inbound, c, 'shardReach', 0.5, 8, 0.05, 'come in from, x footprint');
+    R(inbound, c, 'shardFlight', 0.1, 3, 0.01, 'seconds to cross it');
+    R(inbound, c, 'shardLoft', 0, 3, 0.01, 'start height, x column');
+    R(inbound, c, 'shardCurve', 0, 3, 0.01, 'bow off a radius');
+    R(inbound, c, 'shardRoll', 0, 3, 0.01, 'roll (rev/s)');
+    R(inbound, c, 'trailRate', 0, 300, 1, 'streaks / second');
+
+    const thrown = shard.addFolder('Thrown clear');
+    R(thrown, c, 'shardScatter', 0, 4, 0.01, 'throw spread (s)');
+    R(thrown, c, 'shardSettle', 0.05, 5, 0.01, 'settles over (s)');
+    R(thrown, c, 'shardOrbit', 0.1, 4, 0.01, 'orbit, x footprint');
+    R(thrown, c, 'shardCeiling', 0.02, 1.5, 0.01, 'ceiling, x column');
+    R(thrown, c, 'shardDrift', 0, 4, 0.01, 'keeps rising (m/s)');
+    R(thrown, c, 'shardSpin', 0, 3, 0.01, 'orbit rate (rad/s)');
+    R(thrown, c, 'shardTumble', 0, 2, 0.01, 'tumble (rev/s)');
+    R(thrown, c, 'shardDebris', 0.1, 2, 0.01, 'size, x length');
+
+    const crystal = shard.addFolder('The crystal');
+    R(crystal, c, 'shardFresnel', 0, 6, 0.05, 'rim');
+    R(crystal, c, 'shardFresnelPower', 0.2, 8, 0.05, 'rim power');
+    R(crystal, c, 'shardVein', 0, 6, 0.05, 'flaws');
+    R(crystal, c, 'shardVeinScale', 0.5, 20, 0.1, 'flaw scale');
+    R(crystal, c, 'shardVeinSharp', 0.5, 8, 0.05, 'flaw sharpness');
+    R(crystal, c, 'shardSpine', 0, 6, 0.05, 'lit spine');
+    R(crystal, c, 'shardSpinePower', 0.2, 8, 0.05, 'spine power');
+    R(crystal, c, 'shardGlint', 0, 4, 0.05, 'glints');
+    R(crystal, c, 'shardGlintScale', 2, 80, 1, 'glint scale');
+    R(crystal, c, 'shardHeatGlow', 0, 20, 0.1, 'white-out on arrival');
+    R(crystal, c, 'shardBeamBleed', 0, 6, 0.05, 'lit by the column');
+    R(crystal, c, 'shardBeamRadius', 0.5, 30, 0.1, '... out to (m)');
+    R(crystal, c, 'shardRoughness', 0, 1, 0.01, 'roughness');
+    R(crystal, c, 'shardMetalness', 0, 1, 0.01, 'metalness');
+    R(crystal, c, 'shardEnvIntensity', 0, 3, 0.01, 'env intensity');
+    crystal.addColor(c, 'colorShardBody').name('body');
+    crystal.addColor(c, 'colorShardFacet').name('facet');
+    crystal.addColor(c, 'colorShardWarm').name('warm rim');
+    crystal.addColor(c, 'colorShardCold').name('cold rim');
+    crystal.addColor(c, 'colorShardVein').name('flaws');
+    crystal.addColor(c, 'colorShardHot').name('incandescent');
+
+    /* ---- 4 ---- */
+    const pillar = folder.addFolder('4 · The column');
+    R(pillar, c, 'pillarHeight', 2, 80, 0.5, 'height (m)');
+    R(pillar, c, 'pillarRadius', 0.02, 2, 0.01, 'radius, x footprint');
+    R(pillar, c, 'pillarSkirt', 0, 4, 0.01, 'skirt at the floor');
+    R(pillar, c, 'pillarSkirtPower', 0.5, 12, 0.05, 'skirt falloff');
+    R(pillar, c, 'pillarTopFlare', 0.2, 3, 0.01, 'flare at the top');
+    R(pillar, c, 'pillarFlarePower', 0.1, 6, 0.05, 'flare falloff');
+    R(pillar, c, 'pillarWobble', 0, 0.6, 0.005, 'barrel wobble');
+    R(pillar, c, 'pillarWobbleScale', 0.1, 6, 0.05, 'wobble scale');
+    R(pillar, c, 'pillarWobbleSpeed', 0, 6, 0.05, 'wobble speed');
+    R(pillar, c, 'pillarSpin', -1, 1, 0.005, 'barrel spin (rev/s)');
+    R(pillar, c, 'pillarBodyPower', 0.05, 4, 0.01, 'chord falloff');
+    R(pillar, c, 'pillarCorePower', 0.5, 24, 0.1, 'filament falloff');
+    R(pillar, c, 'pillarCore', 0, 6, 0.05, 'filament');
+    R(pillar, c, 'pillarRim', 0, 4, 0.01, 'caustic edge');
+    R(pillar, c, 'pillarRimPower', 0.1, 8, 0.05, 'edge power');
+    R(pillar, c, 'pillarFlutes', 1, 80, 1, 'flutes');
+    R(pillar, c, 'pillarFluteSharp', 0.05, 4, 0.01, 'flute sharpness');
+    R(pillar, c, 'pillarFluteDepth', 0, 1, 0.01, 'flute depth');
+    R(pillar, c, 'pillarFluteDrift', -0.5, 0.5, 0.005, 'flute drift');
+    R(pillar, c, 'pillarStreamScale', 0.05, 5, 0.01, 'stream scale');
+    R(pillar, c, 'pillarStreamSpeed', 0, 8, 0.05, 'stream speed');
+    R(pillar, c, 'pillarHeadFade', 0, 0.95, 0.01, 'top fade');
+    R(pillar, c, 'pillarFootGlow', 0, 6, 0.05, 'foot glow');
+    R(pillar, c, 'pillarFootReach', 0.01, 1, 0.005, 'foot reach');
+    R(pillar, c, 'pillarSoftFade', 0, 3, 0.01, 'soft particle fade');
+    R(pillar, c, 'pillarIntensity', 0, 8, 0.05, 'intensity');
+    R(pillar, c, 'pillarOpacity', 0, 2, 0.01, 'opacity');
+    R(pillar, c, 'pillarGlow', 0, 4, 0.01, 'glow');
+    R(pillar, c, 'pillarSparks', 0, 600, 5, 'sparks up the shaft');
+    pillar.addColor(c, 'colorPillarCore').name('filament');
+    pillar.addColor(c, 'colorPillarBody').name('body');
+    pillar.addColor(c, 'colorPillarEdge').name('upper');
+    pillar.addColor(c, 'colorPillarCool').name('caustic edge');
+
+    const star = folder.addFolder('4 · The star');
+    R(star, c, 'starSeat', 0, 1.2, 0.01, 'seat, x column height');
+    R(star, c, 'starSize', 0.1, 4, 0.01, 'size, x footprint');
+    R(star, c, 'starDelay', 0, 2, 0.01, 'opens at (s after rend)');
+    R(star, c, 'starTime', 0.05, 3, 0.01, 'opens over (s)');
+    R(star, c, 'starBob', 0, 3, 0.01, 'drift (m)');
+    R(star, c, 'starBobSpeed', 0, 2, 0.01, 'drift speed');
+    R(star, c, 'starVertical', 0, 3, 0.01, 'vertical points');
+    R(star, c, 'starVerticalSharp', 0.5, 24, 0.1, '... sharpness');
+    R(star, c, 'starHorizontal', 0, 3, 0.01, 'horizontal points');
+    R(star, c, 'starHorizontalSharp', 0.5, 24, 0.1, '... sharpness');
+    R(star, c, 'starDiagonal', 0, 3, 0.01, 'diagonal points');
+    R(star, c, 'starDiagonalSharp', 0.5, 24, 0.1, '... sharpness');
+    R(star, c, 'starReach', 0.02, 1.5, 0.005, 'point reach');
+    R(star, c, 'starFalloff', 0.2, 8, 0.05, 'point shading');
+    R(star, c, 'starHalo', 0, 3, 0.01, 'bloom around them');
+    R(star, c, 'starCore', 0.005, 0.5, 0.005, 'core size');
+    R(star, c, 'starCoreGain', 0, 6, 0.05, 'core gain');
+    R(star, c, 'starNeedles', 0, 2, 0.01, 'needle spray');
+    R(star, c, 'starNeedleCount', 4, 120, 1, 'needles');
+    R(star, c, 'starNeedleSharp', 0.5, 30, 0.1, 'needle sharpness');
+    R(star, c, 'starNeedleReach', 0, 2, 0.01, 'needle reach');
+    R(star, c, 'starNeedleSpin', -0.2, 0.2, 0.001, 'needle spin');
+    R(star, c, 'starRing', 0, 3, 0.01, 'the struck circle');
+    R(star, c, 'starRingSeat', 0.02, 1.2, 0.01, 'circle seat');
+    R(star, c, 'starRingWidth', 0.002, 0.2, 0.002, 'circle width');
+    R(star, c, 'starFlicker', 0, 1, 0.01, 'flicker');
+    R(star, c, 'starFlickerRate', 0, 12, 0.1, 'flicker rate');
+    R(star, c, 'starIntensity', 0, 8, 0.05, 'intensity');
+    R(star, c, 'starOpacity', 0, 2, 0.01, 'opacity');
+    R(star, c, 'starGlow', 0, 4, 0.01, 'glow');
+    star.addColor(c, 'colorStarCore').name('core');
+    star.addColor(c, 'colorStarBody').name('body');
+    star.addColor(c, 'colorStarEdge').name('edge');
+    star.addColor(c, 'colorStarCool').name('cold tips');
+
+    const halo = folder.addFolder('4 · The halo rings');
+    R(halo, c, 'haloRadius', 0.2, 4, 0.01, 'outer, x footprint');
+    R(halo, c, 'haloSeat', 0.72, 1, 0.005, 'band seat');
+    R(halo, c, 'haloBand', 0.01, 0.28, 0.005, 'band depth');
+    R(halo, c, 'haloSecond', 0.2, 1.5, 0.01, 'second ring, x first');
+    R(halo, c, 'haloDelay', 0, 2, 0.01, 'opens at (s after rend)');
+    R(halo, c, 'haloStagger', 0, 1, 0.01, 'the two, apart (s)');
+    R(halo, c, 'haloTime', 0.05, 3, 0.01, 'writes round in (s)');
+    R(halo, c, 'haloTilt', 0, 1.4, 0.01, 'lean (rad)');
+    R(halo, c, 'haloSpin', -1, 1, 0.005, 'spin (rev/s)');
+    R(halo, c, 'haloLift', 0, 1.5, 0.01, 'apart, x footprint');
+    R(halo, c, 'haloRails', 0, 4, 0.01, 'rails');
+    R(halo, c, 'haloRailWidth', 0.002, 0.3, 0.002, 'rail width');
+    R(halo, c, 'haloDashes', 0, 1, 0.01, 'dashes');
+    R(halo, c, 'haloDashCount', 4, 160, 1, 'how many');
+    R(halo, c, 'haloDashDuty', 0.05, 0.95, 0.01, 'dash duty');
+    R(halo, c, 'haloDashDrift', -0.4, 0.4, 0.005, 'dash drift');
+    R(halo, c, 'haloGlyphs', 0, 3, 0.01, 'beads');
+    R(halo, c, 'haloGlyphCount', 2, 40, 1, 'how many');
+    R(halo, c, 'haloGlyphSize', 0.002, 0.2, 0.002, 'bead size');
+    R(halo, c, 'haloSweep', 0, 4, 0.01, 'lit limb');
+    R(halo, c, 'haloSweepSharp', 0.1, 12, 0.05, 'limb sharpness');
+    R(halo, c, 'haloSweepRate', -1, 1, 0.005, 'limb travel (rev/s)');
+    R(halo, c, 'haloGrain', 0, 2, 0.01, 'grain');
+    R(halo, c, 'haloGrainScale', 0.1, 10, 0.05, 'grain scale');
+    R(halo, c, 'haloIntensity', 0, 8, 0.05, 'intensity');
+    R(halo, c, 'haloOpacity', 0, 2, 0.01, 'opacity');
+    R(halo, c, 'haloGlow', 0, 4, 0.01, 'glow');
+    halo.addColor(c, 'colorHaloCore').name('rails / beads');
+    halo.addColor(c, 'colorHaloBody').name('band');
+    halo.addColor(c, 'colorHaloCool').name('cold edge');
+
+    const warp = folder.addFolder('The air it shoves aside');
+    R(warp, c, 'warpReach', 0.5, 4, 0.01, 'reach, x the shaft');
+    R(warp, c, 'warpStrength', 0, 6, 0.05, 'strength');
+    R(warp, c, 'warpRipples', 0, 20, 0.1, 'bands up its height');
+    R(warp, c, 'warpSpeed', 0, 20, 0.1, 'band speed');
+    R(warp, c, 'warpChop', 0, 3, 0.01, 'break-up');
+    R(warp, c, 'warpChopScale', 0.1, 8, 0.05, 'break-up scale');
+
+    /* ---- particles ---- */
+    const particles = folder.addFolder('Particles');
+    R(particles, c, 'moteRate', 0, 900, 5, 'motes / second');
+    R(particles, c, 'moteSeat', 0, 2, 0.01, 'mote seat, x footprint');
+    R(particles, c, 'moteSize', 0.005, 0.5, 0.005, 'mote size');
+    R(particles, c, 'moteSpeed', 0, 12, 0.05, 'mote speed');
+    R(particles, c, 'moteLifetime', 0.1, 6, 0.05, 'mote life');
+    R(particles, c, 'moteRise', -6, 8, 0.05, 'mote rise');
+    R(particles, c, 'moteTurbulence', 0, 3, 0.01, 'mote turbulence');
+    Editor.gradient(particles, c, 'colorMote', 'Mote gradient');
+
+    R(particles, c, 'sparkSize', 0.005, 0.5, 0.005, 'spark size');
+    R(particles, c, 'sparkSpeed', 0, 30, 0.1, 'spark speed');
+    R(particles, c, 'sparkLifetime', 0.05, 5, 0.05, 'spark life');
+    R(particles, c, 'sparkGravity', -30, 10, 0.1, 'spark gravity');
+    Editor.gradient(particles, c, 'colorSpark', 'Spark gradient');
+
+    R(particles, c, 'chipSize', 0.01, 0.6, 0.005, 'chip size');
+    R(particles, c, 'chipSpeed', 0, 30, 0.1, 'chip speed');
+    R(particles, c, 'chipLifetime', 0.1, 6, 0.05, 'chip life');
+    R(particles, c, 'chipGravity', -40, 0, 0.5, 'chip gravity');
+    R(particles, c, 'chipSpin', 0, 3, 0.01, 'chip spin');
+    Editor.gradient(particles, c, 'colorChip', 'Chip gradient');
+
+    R(particles, c, 'dustRate', 0, 400, 1, 'dust / second');
+    R(particles, c, 'dustSeat', 0, 2, 0.01, 'dust seat, x footprint');
+    R(particles, c, 'dustSize', 0.05, 4, 0.05, 'dust size');
+    R(particles, c, 'dustSpeed', 0, 12, 0.05, 'dust speed');
+    R(particles, c, 'dustLifetime', 0.2, 8, 0.05, 'dust life');
+    R(particles, c, 'dustRise', -4, 6, 0.05, 'dust rise');
+    R(particles, c, 'dustOpacity', 0, 2, 0.01, 'dust opacity');
+    Editor.gradient(particles, c, 'colorDust', 'Dust gradient');
+
+    /* ---- the beats ---- */
+    const impact = folder.addFolder('Cast, mark, strikes & rend');
+    R(impact, c, 'castMotes', 0, 400, 1, 'cast motes');
+    R(impact, c, 'castFlash', 0, 1, 0.01, 'cast flash');
+    R(impact, c, 'muzzleSize', 0, 4, 0.05, 'muzzle size');
+    R(impact, c, 'muzzleIntensity', 0, 4, 0.05, 'muzzle intensity');
+    R(impact, c, 'markBurst', 0, 8, 0.05, 'mark burst');
+    R(impact, c, 'markIntensity', 0, 4, 0.05, 'mark burst intensity');
+    R(impact, c, 'markMotes', 0, 600, 5, 'mark motes');
+    R(impact, c, 'markShake', 0, 2, 0.01, 'mark shake');
+    R(impact, c, 'markFlash', 0, 1, 0.01, 'mark flash');
+    R(impact, c, 'gildLife', 0.5, 30, 0.5, 'gilding life');
+    R(impact, c, 'gildIntensity', 0, 3, 0.01, 'gilding intensity');
+    R(impact, c, 'strikeSparks', 0, 120, 1, 'sparks / shard');
+    R(impact, c, 'strikeChips', 0, 60, 1, 'chips / shard');
+    R(impact, c, 'strikeShake', 0, 0.5, 0.005, 'shake / shard');
+    R(impact, c, 'rendBurst', 0, 6, 0.05, 'rend burst, x footprint');
+    R(impact, c, 'rendIntensity', 0, 5, 0.05, 'rend burst intensity');
+    R(impact, c, 'shockRadius', 1, 50, 0.5, 'shock ring (m)');
+    R(impact, c, 'crackRadius', 0.2, 6, 0.05, 'cracks, x footprint');
+    R(impact, c, 'crackLife', 0.5, 30, 0.5, 'crack life');
+    R(impact, c, 'crackIntensity', 0, 3, 0.01, 'crack intensity');
+    R(impact, c, 'rendSparks', 0, 2000, 10, 'rend sparks');
+    R(impact, c, 'rendMotes', 0, 1500, 10, 'rend motes');
+    R(impact, c, 'rendChips', 0, 800, 5, 'rend chips');
+    R(impact, c, 'rendDust', 0, 500, 5, 'rend dust');
+    R(impact, c, 'rendShake', 0, 4, 0.01, 'rend shake');
+    R(impact, c, 'shakeDuration', 0.05, 3, 0.01, 'shake decay (s)');
+    R(impact, c, 'rendFlash', 0, 1.5, 0.01, 'rend flash');
+    R(impact, c, 'rumble', 0, 0.5, 0.005, 'travel rumble');
+    R(impact, c, 'holdShake', 0, 0.5, 0.005, 'standing rumble');
+    impact.addColor(c, 'colorBurstA').name('burst core');
+    impact.addColor(c, 'colorBurstB').name('burst mid');
+    impact.addColor(c, 'colorBurstC').name('burst edge');
+    impact.addColor(c, 'colorCastFlash').name('cast flash colour');
+    impact.addColor(c, 'colorFlash').name('rend flash colour');
+    impact.addColor(c, 'colorGild').name('gilding');
+    impact.addColor(c, 'colorGildEdge').name('gilding edge');
+    impact.addColor(c, 'colorCrack').name('crack');
+    impact.addColor(c, 'colorCrackEdge').name('crack edge');
+
+    /* ---- the judgment ---- */
+    const judge = folder.addFolder('The judgment (what it does to a body)');
+    const j = c.judge;
+    R(judge, j, 'reach', 0.2, 3, 0.01, 'reach, x footprint');
+    R(judge, j, 'impulse', 0, 12, 0.05, 'knockback (0 = none)');
+    R(judge, j, 'lift', 0, 8, 0.05, 'lift');
+    R(judge, j, 'spin', 0, 4, 0.05, 'torque');
+    R(judge, j, 'press', 0, 8, 0.05, 'press down (m/s)');
+    R(judge, j, 'grab', 0, 30, 0.1, 'scrub sideways / s');
+    R(judge, j, 'grabY', 0, 30, 0.1, 'scrub vertical / s');
+    R(judge, j, 'stagger', 0, 3, 0.01, 'burns spread over (s)');
+    R(judge, j, 'devour', 0.05, 4, 0.01, 'burn rate (bodies/s)');
+    R(judge, j, 'markMotes', 0, 200, 1, 'marked motes / s');
+    R(judge, j, 'burnMotes', 0, 400, 1, 'burning motes / s');
+    R(judge, j, 'condemnSparks', 0, 200, 1, 'sparks as it falls');
+    R(judge, j, 'condemnRing', 0, 4, 0.05, 'ring at its feet (m)');
+    R(judge, j, 'takenBurst', 0, 4, 0.05, 'burst as it goes');
+    R(judge, j, 'takenMotes', 0, 400, 1, 'motes as it goes');
+    R(judge, j, 'takenShake', 0, 1, 0.005, 'shake as it goes');
+
+    const light = folder.addFolder('Dynamic light');
+    R(light, c, 'lightIntensity', 0, 90, 0.5, 'light intensity');
+    R(light, c, 'lightRadius', 0.5, 60, 0.1, 'light radius');
+    R(light, c, 'lightHeight', 0, 1, 0.005, 'height up the shaft');
+    R(light, c, 'lightPulse', 0, 2, 0.01, 'toll owns');
+    light.addColor(c, 'lightColor').name('light colour');
+
+    this.rendFolder = folder;
+  }
+
 
   /* ------------------------------------------------------------------ */
 

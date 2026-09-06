@@ -130,8 +130,11 @@ function swellEnvelope(t) {
  *
  * **What happens to the bodies is the point.** This class answers
  * `handlesOwnHits`, so `DummyField` leaves it alone. Instead it asks
- * `findBodies` who is standing — or already lying — inside the circle, knocks
- * the living *inward* rather than outward, and then keeps hold of all of them.
+ * `findBodies` who is standing — or already lying — inside the circle, cuts
+ * the living loose into the solver without hitting them, and keeps hold of all
+ * of them. Nothing is thrown: `grip.impulse`, `grip.lift` and `grip.spin` are
+ * zero, so a body caught by the tide simply goes limp where it stood and the
+ * water is what moves it from there.
  *
  * What it does to them from there is three beats, and they have to arrive in
  * this order or the ability reads as a hole in the floor: the water gets
@@ -761,11 +764,21 @@ export class SumiTideAbility extends Ability {
    * *moves* bodies: one thrown across the boundary by another cast has to be
    * caught on the frame it crosses, not ignored for the rest of the zone's life.
    *
-   * A body still on its feet is knocked down first, and knocked **inward** —
-   * the one detail that says whirlpool. Everything the rest of the stage does
-   * throws bodies away from the impact; this one pulls them into it, and a
-   * corpse that flies outward from a vortex would undo the read before the
-   * water even reaches it.
+   * A body still on its feet is cut loose into the solver first — and *only*
+   * that. `kill` is how a dummy becomes a ragdoll at all, so it still has to be
+   * called, but the force it is called with is zero (`grip.lift`,
+   * `grip.impulse`, `grip.spin`): the tide does not hit anything. Everything
+   * else on this stage throws bodies away from the impact and this one is the
+   * exception — it takes hold. A blow, even an inward one, puts the body on a
+   * ballistic arc for the first half second, which is exactly the window the
+   * flood is arriving in: it lands off the spiral schedule `_drag` is holding
+   * it to, and the whole thing reads as a knockback with a whirlpool painted
+   * over it. Limp on the spot, the water catches it half way down and the only
+   * motion anybody sees is the one the vortex gives it.
+   *
+   * The direction still handed to `kill` is inward, so that turning any of
+   * those three back up in the editor scatters bodies *into* the tide rather
+   * than out of it.
    */
   _capture() {
     const field = this.ctx.dummies;

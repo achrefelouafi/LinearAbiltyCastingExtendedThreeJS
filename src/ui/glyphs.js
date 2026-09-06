@@ -291,6 +291,27 @@ const CASCADE = WRAP(`
   <path d="M67 33L79 21M33 33L21 21M67 67L79 79M33 67L21 79"/>
 `);
 
+/**
+ * Rend — a four-pointed star on a column, ringed twice.
+ *
+ * The one sigil in the set with a *vertical*: everything else here is a shape,
+ * and this ability is a shaft of light with something welded to its head. So the
+ * star is drawn with concave sides and a long vertical pair — the same
+ * asymmetry the shader builds it from — the shaft runs out of the bottom of it
+ * to the floor line, and the two ellipses crossing at its middle are the halo
+ * rings, deliberately not concentric so they read as leaning rather than as a
+ * target. The filled core is what keeps it legible at 34px, where the star's
+ * points alone would thin out to nothing.
+ */
+const REND = WRAP(`
+  <path d="M50 6Q53.5 34 69 44Q53.5 54 50 82Q46.5 54 31 44Q46.5 34 50 6Z"/>
+  <circle cx="50" cy="44" r="4.5" fill="currentColor" stroke="none"/>
+  <ellipse cx="50" cy="44" rx="33" ry="8.5" transform="rotate(-13 50 44)"/>
+  <ellipse cx="50" cy="44" rx="24" ry="6.5" transform="rotate(15 50 44)"/>
+  <path d="M50 82V93"/>
+  <path d="M27 93H73"/>
+`);
+
 /** Keyed by the ids in `ELEMENTS`. */
 export const ELEMENT_SIGILS = {
   ice: ICE,
@@ -307,5 +328,6 @@ export const ELEMENT_SIGILS = {
   quake: QUAKE,
   ink: INK,
   astral: ASTRAL,
-  cascade: CASCADE
+  cascade: CASCADE,
+  rend: REND
 };

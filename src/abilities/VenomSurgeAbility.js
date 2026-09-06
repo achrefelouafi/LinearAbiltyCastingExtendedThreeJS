@@ -539,8 +539,8 @@ export class VenomSurgeAbility extends Ability {
   }
 
   /**
-   * How far out of the ground a gem is, 0 → 1 with a springy overshoot past 1.
-   * Negative while it is still buried and waiting.
+   * How far out of the ground a gem is, 0 → 1 by way of a single overshoot
+   * past 1. Negative while it is still buried and waiting.
    */
   _emergence(record, c) {
     if (record.eruptTime < 0) return -1;
@@ -548,13 +548,18 @@ export class VenomSurgeAbility extends Ability {
     if (elapsed < 0) return -1;
 
     const riseTime = Math.max(0.02, c.riseTime);
-    const rise = Easing.outQuint(saturate(elapsed / riseTime));
-    if (elapsed <= riseTime) return rise;
+    // The punch throws the crystal clear of its seat, so the rise carries all
+    // the way to the top of the overshoot rather than stopping at full height.
+    const peak = 1 + c.riseOvershoot;
+    if (elapsed <= riseTime) return Easing.outQuint(elapsed / riseTime) * peak;
 
-    // The punch-through carries past full height and settles back.
-    const after = elapsed - riseTime;
-    const spring = Math.sin(after * 15) * Math.exp(-after / Math.max(0.05, c.settle));
-    return 1 + c.riseOvershoot * spring;
+    // Then it drops back onto the seat and stays there. Crystal does not
+    // rebound: it lands once and the floor keeps it. Anything that oscillates
+    // here — which is what a damped sine does — reads as rubber, and a field of
+    // them oscillating together reads as jelly. inQuad because that is the
+    // shape of a fall: slow off the top, hard at the bottom.
+    const drop = saturate((elapsed - riseTime) / Math.max(0.05, c.settle));
+    return peak - c.riseOvershoot * Easing.inQuad(drop);
   }
 
   /**

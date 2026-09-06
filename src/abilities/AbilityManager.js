@@ -13,6 +13,7 @@ import { MonolithRiftAbility } from './MonolithRiftAbility.js';
 import { SumiTideAbility } from './SumiTideAbility.js';
 import { AstralVoidAbility } from './AstralVoidAbility.js';
 import { BalefulCascadeAbility } from './BalefulCascadeAbility.js';
+import { CelestialRendAbility } from './CelestialRendAbility.js';
 import { ELEMENTS } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
@@ -32,7 +33,8 @@ const ABILITY_TYPES = {
   quake: MonolithRiftAbility,
   ink: SumiTideAbility,
   astral: AstralVoidAbility,
-  cascade: BalefulCascadeAbility
+  cascade: BalefulCascadeAbility,
+  rend: CelestialRendAbility
 };
 
 const MAX_CONCURRENT = 4;

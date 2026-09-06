@@ -383,7 +383,9 @@ export class Dummy {
       uniforms: this._makeUniforms(),
       ragdoll: null,
       /** The joint nearest the cut — where this half was parted. */
-      cutBone: null
+      cutBone: null,
+      /** The pose the rig arrived in, one entry per bone. See `_restPose`. */
+      rest: []
     };
 
     this._dress(part);
@@ -393,9 +395,35 @@ export class Dummy {
       part.bones.set(node.name, node);
       const short = stripNamespace(node.name);
       if (short && !part.bones.has(short)) part.bones.set(short, node);
+      // Taken here rather than looked up later: this runs before anything has
+      // posed the skeleton, so it is the only moment the rig is guaranteed to
+      // be wearing its own pose. Recorded off the traverse so each bone is
+      // taken once — `bones` holds most of them twice, under both names.
+      part.rest.push({
+        bone: node,
+        position: node.position.clone(),
+        quaternion: node.quaternion.clone()
+      });
     });
 
     return part;
+  }
+
+  /**
+   * Put the skeleton back the way the rig came.
+   *
+   * The mixer cannot be asked to do this. It writes what the clip has tracks
+   * for — rotations, here — and the solver writes one thing the clip does not
+   * carry: the hips' local position. That single number is the body's
+   * translation, so a corpse hands its whole displacement to whoever stands up
+   * next in that slot. See `place`, which is the only caller and calls it every
+   * time.
+   */
+  _restPose(part) {
+    for (const entry of part.rest) {
+      entry.bone.position.copy(entry.position);
+      entry.bone.quaternion.copy(entry.quaternion);
+    }
   }
 
   /** The dissolve, the rim and the cut, shared by every material on one piece. */
@@ -659,6 +687,18 @@ export class Dummy {
     part.cutBone = null;
     part.uniforms.uCutSide.value = 0;
     this._castShadows(true);
+    // And whatever the last *fall* left behind, which is not the clip's to undo.
+    // `Ragdoll#_pose` writes the hips' local position, and the idle clip has no
+    // track for it — so a mixer tick restores every rotation and leaves the
+    // body's translation exactly where the corpse ended up. A dummy re-used
+    // after one fall then stands up with its skeleton several metres from its
+    // own root, and if anything kills it before the next tick (a zone still
+    // fishing, `applyHits` running in the same frame it was re-stood) the new
+    // solver is built off *that*: the body is thrown, underground, and every
+    // further life compounds it — three casts in, a corpse was two kilometres
+    // above the stage. Cheap and unconditional, because the pose it is putting
+    // back is the one the rig arrived in.
+    this._restPose(part);
 
     this.root.position.set(x, 0, z);
     this.facing = yaw;

@@ -3427,10 +3427,12 @@ export const settings = {
     twist: 1.0, // random yaw, 0..1 of a full turn
 
     /* --- the eruption --- */
-    riseTime: 0.16, // seconds from buried to full height
-    riseOvershoot: 0.3, // how far past full height the punch carries
+    riseTime: 0.16, // seconds from buried to the top of the punch
+    riseOvershoot: 0.16, // how far past full height the punch carries — this is
+    // the literal peak, and past ~0.2 the crystal's root clears the floor on show
     riseStagger: 0.08, // seconds of random delay between neighbours
-    settle: 0.5, // seconds the overshoot takes to damp out
+    settle: 0.26, // seconds it takes to drop back onto its seat. One fall, no
+    // rebound — a field of gems oscillating in step reads as jelly, not stone.
     shatterDelay: 0.55, // seconds after `lifetime` before they let go
     sinkTime: 1.0, // seconds to withdraw into the floor
 
@@ -4350,9 +4352,20 @@ export const settings = {
       // this it would be swallowed on arrival — the turn is the ability.
       hold: 1.1, // seconds a body turns on the surface before it may go under
       depth: 3.2, // metres it is allowed to fall below the floor
-      lift: 3.2, // metres/second the blow throws it up as it is taken
-      impulse: 1.6, // ... and inward
-      spin: 0.8, // extra impulse per body-height above the hips — the torque
+      // The blow, and it is deliberately **nothing**. This is the one ability
+      // on the stage that does not hit what is standing in it: the water takes
+      // hold. `kill` here exists to hand the body to the solver — to make it a
+      // ragdoll — and the current above is what then turns it and walks it to
+      // the axis. Any impulse at all fights that. A body thrown up and inward
+      // on the frame the tide lands has been *kicked* into the circle, spends
+      // the first half second on a ballistic arc no current is steering, and
+      // arrives somewhere the spiral schedule did not put it — which reads as
+      // a knockback with a whirlpool painted over it rather than as a body
+      // swallowed by one. Left at zero the body simply goes limp where it
+      // stood, and the flood catches it half way down.
+      lift: 0.0, // metres/second the blow throws it up as it is taken
+      impulse: 0.0, // ... and inward
+      spin: 0.0, // extra impulse per body-height above the hips — the torque
       splashDroplets: 40, // thrown when a body breaks the surface
       splashSpray: 30,
       splashFoam: 0.85, // brightness of the ring it leaves
@@ -5196,6 +5209,500 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
+  /* REND — the Celestial Rend, and the Judgment Cascade                 */
+  /* ------------------------------------------------------------------ */
+  /**
+   * A far cast built to a four-panel breakdown sheet, and the third cast in the
+   * sandbox that picks its own targets.
+   *
+   * The block is laid out in the order the ability happens — the cast, the
+   * order of the beats, then the four panels: mark, tendrils, shards, and the
+   * divine impact that is the column, the star and the halos — followed by what
+   * the rend does to a body.
+   *
+   * Three knobs re-scale the whole thing in proportion and are the ones worth
+   * reaching for first: `zoneRadius` (in "The cast") sets the footprint and
+   * nearly every horizontal length is a multiple of it; `pillarHeight` sets the
+   * vertical and the star, the halos and the shard ceiling all seat off it; and
+   * `chargeTime` sets how long the shards have to come in before the mark goes
+   * off, which is the entire pacing of the piece. All three are live: drag one
+   * while a cascade is standing and every layer re-seats around it, paused or
+   * not.
+   */
+  rend: {
+    /* --- the cast --- */
+    range: 24.0, // maximum cast distance, metres
+    minRange: 0.0, // it is a zone: dropping it at your own feet is allowed
+    zoneRadius: 5.0, // the footprint — what the circle indicator measures out
+    speed: 72.0, // how fast the mote runs to the point, metres/second
+    lifetime: 6.2, // seconds the cascade stands, once the mark has landed
+    fadeTime: 2.4, // seconds it takes to close
+    cooldown: 5.5,
+    castAnim: 'cast1', // which clip in `CAST_ANIMATIONS` the body throws
+
+    /* --- where the mote leaves the caster --- */
+    handHeight: 1.15, // metres above the floor
+    handForward: 0.7, // metres in front of the caster
+    handSide: -0.1, // metres to the side (+ follows `Ability#side`)
+    trailMotes: 34, // motes per metre of the throw
+    seedStarSize: 0.34, // the star riding the mote, × the footprint
+    seedHeight: 2.6, // metres above the mark the seed star hangs at
+
+    /* --- the order it happens in --- */
+    /**
+     * One clock — seconds since the mark landed — and every beat below is a
+     * threshold on it. Nothing in this ability runs on a timer of its own,
+     * which is why the whole sequence can be scrubbed by dragging these.
+     *
+     * The rend fires at `sigilTime + chargeTime`. Everything before that is the
+     * first three panels winding up; everything after it is the fourth.
+     */
+    sigilTime: 0.6, // seconds the mark takes to write itself on
+    tendrilDelay: 0.3, // seconds before the tendrils start climbing
+    tendrilTime: 1.0, // ... and how long they take to reach full height
+    chargeTime: 1.7, // seconds of shards coming in before the mark goes off
+    rendTime: 0.45, // seconds the detonation itself takes
+    pillarRise: 0.34, // seconds the beam's front takes to reach the top
+    pulseRate: 1.3, // how fast the toll envelope runs
+    pulseDepth: 0.55, // how hard it modulates everything, 0 = flat
+
+    /* --- 1 · the celestial mark --- */
+    /**
+     * A four-pointed star with concave points, a nest of concentric rings, four
+     * satellite glyphs and a band of runic ticks — panel one and panel four out
+     * of one field, separated by how far the rend has gone.
+     *
+     * `sigilStarSharp` is the one to reach for: above 2 the points draw out into
+     * the long needles the sheet uses, at 1 it is a rounded clover, and at 0 it
+     * is a plain circle. Every length here is a multiple of the footprint, so
+     * the mark re-scales around its own middle rather than stretching.
+     */
+    sigilHeight: 0.03, // hover distance above the floor, metres
+    sigilLineWidth: 0.035, // stroke width, metres
+    sigilLineGlow: 2.4,
+
+    sigilStar: 1.0,
+    sigilStarPoints: 4,
+    sigilStarOuter: 1.0, // the points, × the footprint
+    sigilStarSharp: 2.6, // >1 draws them out into needles
+    sigilStarSpin: 0.012, // revolutions/second
+    sigilStarFill: 0.2, // the wash the star holds
+    sigilStarInner: 0.7, // the second star inside it
+    sigilStarInnerScale: 0.46,
+
+    sigilRings: 1.0,
+    sigilRingCount: 5,
+    sigilRingInner: 0.24, // the innermost ring, × the footprint
+    sigilRingSpread: 0.82, // ... and how far the nest reaches past it
+    sigilRingWobble: 0.01, // how far a ring wanders off a circle
+    sigilRingWobbleLobes: 7,
+
+    sigilGlyphs: 1.0,
+    sigilGlyphCount: 4,
+    sigilGlyphSeat: 0.68, // where they sit, × the footprint
+    sigilGlyphSize: 0.11,
+    sigilGlyphSpin: -0.015, // the other way from the star, on purpose
+
+    sigilTicks: 0.7,
+    sigilTickCount: 48,
+    sigilTickSeat: 1.04,
+    sigilTickLength: 0.1,
+    sigilTickSpin: 0.006,
+
+    sigilCracks: 1.0, // the floor splitting, once the rend has opened it
+    sigilCrackCount: 9,
+    sigilCrackSeat: 1.25, // how far the splits run, × the footprint
+    sigilCrackWander: 0.35, // how far they fork off a clean radius
+    sigilCrackWidth: 0.07,
+
+    sigilWash: 0.24,
+    sigilWashFalloff: 1.8,
+    sigilGrain: 0.4,
+    sigilGrainScale: 2.2,
+    sigilOpacity: 1.0,
+    sigilGlow: 1.4,
+    colorSigilLine: '#ffcf7a',
+    colorSigilCore: '#fff6e0',
+    colorSigilDeep: '#3a2a10',
+    colorSigilWash: '#ffab3c',
+    colorFront: '#fffaf0', // the edge the mark writes itself with
+
+    /* --- 2 · the astral tendrils --- */
+    /**
+     * Ribbons climbing out of the stone and winding onto the column's axis.
+     *
+     * `tendrilShear` is what makes them a braid rather than a spring: a strand
+     * seated near the axis laps one seated out at the boundary, so they cross
+     * each other instead of running parallel. `tendrilDraw` is the other one
+     * that matters — how far onto the axis they are pulled at the top, which is
+     * what ties this layer to the beam.
+     */
+    tendrils: 32, // how many ribbons are in the braid
+    tendrilSeat: 0.85, // where they leave the floor, × the footprint
+    tendrilSeatJitter: 0.5,
+    tendrilSpread: 0.9, // jitter on their bearings
+    tendrilReach: 0.5, // how far up the column they climb, × its height
+    tendrilCharge: 0.22, // ... and how far before the rend, when it is all there is
+    tendrilHeightJitter: 0.35,
+    tendrilRise: 0.2, // loops per second — how fast one runs its climb
+    tendrilLength: 0.75, // how much of the climb one ribbon spans
+    tendrilWind: 1.7, // turns about the axis over the whole climb
+    tendrilShear: 0.9, // extra winding for the strands seated deepest
+    tendrilCounter: 0.35, // fraction of them that wind the other way
+    tendrilFlare: 0.35, // how far the seat closes with height
+    tendrilDraw: 0.16, // ... and how hard the top is pulled onto the axis
+    tendrilDrawAt: 0.62, // where up the climb that starts
+    tendrilWander: 0.8, // noise off the helix, metres
+    tendrilWanderScale: 1.6,
+    tendrilWanderSpeed: 0.4,
+    tendrilWidth: 0.008, // ribbon width, × the climb height
+    tendrilWidthBias: 0.45, // how fast it thins as it climbs
+    tendrilIntensity: 0.5,
+    tendrilSoftEdge: 1.4,
+    tendrilErode: 0.45, // how much of it is eaten along its length
+    tendrilErodeScale: 3.2,
+    tendrilErodeSpeed: 0.6,
+    tendrilHead: 0.5, // the bright band running up each ribbon
+    tendrilHeadWidth: 0.11,
+    tendrilHeadRate: 0.55, // how fast it travels
+    tendrilHeadFade: 0.4,
+    tendrilTailFade: 0.12,
+    tendrilSoftFade: 0.5,
+    tendrilOpacity: 1.0,
+    tendrilGlow: 1.0,
+    colorTendrilRoot: '#ffb14a',
+    colorTendrilWarm: '#ffd58f',
+    colorTendrilCold: '#a9c8ff',
+    colorTendrilTip: '#fffdf5',
+
+    /* --- 3 · the radiant shards --- */
+    /**
+     * Slivers of crystallised light coming in from every bearing, and the
+     * debris the detonation throws clear of the column afterward.
+     *
+     * The arrivals **accelerate**: a shard's landing is drawn from a dice roll
+     * biased toward the end of `chargeTime`, so the strikes start lonely and
+     * finish as a hail that the rend lands on top of. `shardReach` is where they
+     * come in from — push it out and they arrive out of the dark rather than
+     * fading in at the edge of the circle.
+     */
+    shardDensity: 1.0, // 0..1 of the 60 slots that are dealt
+    shardSize: 1.7, // length of one sliver, metres
+    shardGirth: 1.0, // ... and how thick it is cut, × that
+    shardReach: 3.4, // where they come in from, × the footprint
+    shardFlight: 0.85, // seconds one takes to cross that
+    shardLoft: 1.0, // how high they start, × the column's height
+    shardCurve: 0.6, // how far they bow off a clean radius, radians
+    shardRoll: 0.4, // revolutions/second one turns on its own axis inbound
+
+    shardScatter: 1.2, // seconds the throw-clear is spread over
+    shardSettle: 1.6, // seconds one takes to reach its orbit
+    shardOrbit: 1.5, // where that orbit sits, × the footprint
+    shardCeiling: 0.42, // ... and how high, × the column's height
+    shardDrift: 0.55, // metres/second it keeps climbing after that
+    shardSpin: 0.35, // radians/second the orbit turns
+    shardTumble: 0.12, // revolutions/second the shard turns on its own axes
+    shardDebris: 0.8, // size of a thrown shard, × `shardSize`
+
+    /**
+     * Every one of the five terms below except the glint and the spine covers
+     * the **whole** surface, and area terms summed at similar weights drown the
+     * shading underneath them — a lit solid that comes out as a featureless
+     * white blob in this sandbox is almost never the bloom, it is this. So the
+     * budget is spent deliberately: the spine is the loud one because it is
+     * spatially concentrated on the sliver's own axis, and the three that cover
+     * everything are held well under half.
+     */
+    shardFresnel: 0.6, // the rim that draws the silhouette
+    shardFresnelPower: 2.2,
+    shardVein: 0.25, // the flaws it is lit through
+    shardVeinScale: 5.0,
+    shardVeinSharp: 2.6,
+    shardSpine: 0.9, // the hot line down its own axis — the loud one
+    shardSpinePower: 2.2,
+    shardGlint: 1.0, // pinpoint sparkle: tiny area, so it can afford to be hot
+    shardGlintScale: 22,
+    shardHeatGlow: 5.0, // the white-out on the frame it lands, and only then
+    shardBeamBleed: 0.5, // how much of the column's light falls on it
+    shardBeamRadius: 8.0, // ... and how far that carries, metres
+    // 0.2 roughness against this HDR probe is a mirror, and a mirror at this
+    // size is a white chip. This reads as cut crystal.
+    shardRoughness: 0.42,
+    shardMetalness: 0.18,
+    shardEnvIntensity: 0.45,
+    colorShardBody: '#1b2436',
+    colorShardFacet: '#4a5878',
+    colorShardWarm: '#ffc86a',
+    colorShardCold: '#9fc4ff',
+    colorShardVein: '#ffe6ad',
+    colorShardHot: '#fffaf0',
+
+    /* --- 4 · the divine impact: the column --- */
+    /**
+     * The shaft is shaded on a power of |N·V| rather than on a fresnel, because
+     * what the eye reads as a beam's brightness is how much of it the ray
+     * crossed — longest through the middle of the silhouette, nothing at the
+     * edges. `pillarBodyPower` is that falloff and `pillarCorePower` is the
+     * white filament run out of the same term; between them they are most of
+     * the look. A fresnel here would give a hollow tube.
+     */
+    pillarHeight: 30.0, // metres — it leaves the top of the frame on purpose
+    pillarRadius: 0.28, // the shaft, × the footprint
+    pillarSkirt: 1.1, // how far it flares where it meets the stone
+    pillarSkirtPower: 4.5, // ... and how fast that closes with height
+    pillarTopFlare: 1.25, // how much wider it is at the top
+    pillarFlarePower: 1.6,
+    pillarWobble: 0.08, // noise on the barrel, × its radius
+    pillarWobbleScale: 1.1,
+    pillarWobbleSpeed: 1.2,
+    pillarSpin: 0.05, // revolutions/second the whole barrel turns
+    pillarBodyPower: 1.3, // the chord falloff — lower is a fatter beam
+    pillarCorePower: 9.0, // ... and the white filament out of the same term
+    pillarCore: 0.35,
+    pillarRim: 0.35, // the caustic boundary. Small: it is only an edge
+    pillarRimPower: 2.2,
+    pillarFlutes: 22, // vertical channels combed up the barrel
+    pillarFluteSharp: 0.55,
+    pillarFluteDepth: 0.6, // how much of the brightness they own
+    pillarFluteDrift: 0.035, // how fast they slide around it
+    pillarStreamScale: 1.0, // the light pouring up through them
+    pillarStreamSpeed: 1.6,
+    pillarHeadFade: 0.42, // the beam does not end, it loses itself
+    pillarFootGlow: 0.7, // ... and it piles up on the stone
+    pillarFootReach: 0.12,
+    pillarSoftFade: 0.6,
+    pillarIntensity: 0.36,
+    pillarOpacity: 1.0,
+    pillarGlow: 1.0,
+    pillarSparks: 140, // gold pouring up the shaft, per second
+    colorPillarCore: '#fffdf2',
+    colorPillarBody: '#ffd489',
+    colorPillarEdge: '#ffb254',
+    colorPillarCool: '#bcd8ff',
+
+    /* --- 4 · ... the star welded to its head --- */
+    /**
+     * Three raised cosines summed into a reach — a long vertical pair, a shorter
+     * horizontal pair, four short diagonals — with an exponential falloff along
+     * each. Concave-sided by construction, so it stays sharp at any size and
+     * under any exposure, which a sprite would not.
+     */
+    starSeat: 0.42, // where it hangs, × the column's height
+    starSize: 2.0, // its half-extent, × the footprint
+    starDelay: 0.16, // seconds after the rend it opens
+    starTime: 0.5, // ... and how long that takes
+    starBob: 0.25, // metres it drifts up and down
+    starBobSpeed: 0.18,
+    starVertical: 1.0, // the long pair
+    starVerticalSharp: 7.0, // higher is narrower
+    starHorizontal: 0.72, // the short pair
+    starHorizontalSharp: 11.0,
+    starDiagonal: 0.1, // the four between them
+    starDiagonalSharp: 7.0,
+    starReach: 0.86, // how far the points carry, × the half-extent
+    starFalloff: 1.5, // how the inside of a point shades toward its edge
+    starHalo: 0.35, // the soft bloom the points sit in
+    starCore: 0.06, // the hot round middle
+    starCoreGain: 0.9,
+    starNeedles: 0.18, // the fine spray between the points
+    starNeedleCount: 34,
+    starNeedleSharp: 9,
+    starNeedleReach: 0.5,
+    starNeedleSpin: 0.015,
+    starRing: 0.3, // the thin circle struck through it
+    starRingSeat: 0.5,
+    starRingWidth: 0.008,
+    starFlicker: 0.12,
+    starFlickerRate: 2.6,
+    starIntensity: 1.3,
+    starOpacity: 1.0,
+    starGlow: 1.0,
+    colorStarCore: '#fffef8',
+    colorStarBody: '#ffe1a4',
+    colorStarEdge: '#ffb04a',
+    colorStarCool: '#a8c6ff',
+
+    /* --- 4 · ... and the halo rings turning about it --- */
+    /**
+     * Two, leaning opposite ways and turning at different rates, so they cross.
+     * Two rings that lean the same way read as one wide band; two that cross
+     * read as an orrery, which is what the sheet's hero image is.
+     */
+    haloRadius: 1.5, // the outer edge, × the footprint
+    haloSeat: 0.87, // where the band sits inside that
+    haloBand: 0.1, // ... and how deep it is
+    haloSecond: 0.92, // the second ring, × the first
+    haloDelay: 0.2, // seconds after the rend they open
+    haloStagger: 0.09, // ... and how far apart
+    haloTime: 0.45, // how long one takes to write itself round
+    haloTilt: 0.34, // radians each leans, opposite ways
+    haloSpin: 0.09, // revolutions/second, opposite ways
+    haloLift: 0.3, // metres apart they sit, × the footprint
+    haloRails: 1.2, // the two bright lines fencing the band
+    haloRailWidth: 0.03,
+    haloDashes: 0.45, // how hard the band is cut into dashes
+    haloDashCount: 40,
+    haloDashDuty: 0.62,
+    haloDashDrift: 0.03,
+    haloGlyphs: 0.9, // the handful of bright beads on it
+    haloGlyphCount: 8,
+    haloGlyphSize: 0.03,
+    haloSweep: 1.1, // the lit limb, and how hard it is beamed
+    haloSweepSharp: 2.4,
+    haloSweepRate: 0.22, // revolutions/second it travels
+    haloGrain: 0.35,
+    haloGrainScale: 3.0,
+    haloIntensity: 1.2,
+    haloOpacity: 1.0,
+    haloGlow: 1.0,
+    colorHaloCore: '#fff4d6',
+    colorHaloBody: '#ffc46a',
+    colorHaloCool: '#9dbcff',
+
+    /* --- the air the column shoves aside --- */
+    warpReach: 1.35, // the proxy's radius, × the shaft
+    warpStrength: 0.35,
+    warpRipples: 3.0, // bands up its height
+    warpSpeed: 4.5,
+    warpChop: 0.45,
+    warpChopScale: 2.2,
+
+    /* --- particles --- */
+    moteRate: 190, // gold lifted off the mark, per second
+    moteSeat: 1.0, // over how much of the footprint, × it
+    moteSize: 0.075,
+    moteSpeed: 1.6,
+    moteLifetime: 1.5,
+    moteRise: 1.6,
+    moteTurbulence: 0.5,
+    colorMoteA: '#fffdf4',
+    colorMoteB: '#ffd68a',
+    colorMoteC: '#ff9c3a',
+    colorMoteD: '#4a2a12',
+
+    sparkSize: 0.1, // the streaks: shard trails and everything that lands
+    sparkSpeed: 4.5,
+    sparkLifetime: 0.9,
+    sparkGravity: -1.4,
+    trailRate: 110, // streaks per second behind one inbound shard
+    colorSparkA: '#ffffff',
+    colorSparkB: '#ffe2a8',
+    colorSparkC: '#ffab45',
+    colorSparkD: '#6b3a12',
+
+    chipSize: 0.11, // the floor coming up
+    chipSpeed: 6.5,
+    chipLifetime: 1.6,
+    chipGravity: -8.5,
+    chipSpin: 0.4,
+    colorChipA: '#7a6d55',
+    colorChipB: '#3e3527',
+    colorChipC: '#211c14',
+    colorChipD: '#100d09',
+
+    dustRate: 40, // the bank the column stands in
+    dustSeat: 0.9,
+    dustSize: 0.85,
+    dustSpeed: 2.2,
+    dustLifetime: 2.6,
+    dustRise: -0.3,
+    dustOpacity: 0.75,
+    colorDustA: '#9a8f7c',
+    colorDustB: '#6b6254',
+    colorDustC: '#3d382f',
+    colorDustD: '#1a1815',
+
+    /* --- the cast, the mark, the strikes and the rend --- */
+    castMotes: 60,
+    castFlash: 0.06,
+    muzzleSize: 0.85,
+    muzzleIntensity: 1.5,
+    markBurst: 2.4, // the shell the mark throws as it lands
+    markIntensity: 1.4,
+    markMotes: 90,
+    markShake: 0.16,
+    markFlash: 0.09,
+    gildLife: 9.0, // the gilding left under the mark
+    gildIntensity: 0.35,
+    strikeSparks: 16, // per shard that lands
+    strikeChips: 5,
+    strikeShake: 0.035,
+    rendBurst: 2.1, // the shell the detonation throws, × the footprint
+    rendIntensity: 1.9,
+    shockRadius: 14.0, // how far the ring runs, metres
+    crackRadius: 1.6, // the split floor, × the footprint
+    crackLife: 9.0,
+    crackIntensity: 0.5,
+    rendSparks: 420, // gold thrown straight up the shaft
+    rendMotes: 260, // ... and out along the floor with the ring
+    rendChips: 160,
+    rendDust: 90,
+    rendShake: 0.9,
+    shakeDuration: 0.6, // seconds that shake decays over
+    rendFlash: 0.4,
+    rumble: 0.04, // continuous shake while the mote travels
+    holdShake: 0.05, // ... and while the column stands
+    colorBurstA: '#fff6dc',
+    colorBurstB: '#ffc86a',
+    colorBurstC: '#ff8f34',
+    colorCastFlash: '#ffd79a',
+    colorFlash: '#ffe6b8',
+    colorGild: '#1a1206',
+    colorGildEdge: '#5a3a12',
+    colorCrack: '#ffb24a',
+    colorCrackEdge: '#3a2410',
+
+    /* --- what the rend does to a body --- */
+    /**
+     * The third cast in the sandbox that picks its own targets, and the only one
+     * that deliberately does **not** move them.
+     *
+     * `impulse` is zero and it is meant to be. `Ragdoll#strike` multiplies it
+     * into every joint's horizontal velocity, so zero is a body whose legs
+     * simply stop holding it: it collapses into its own footprint instead of
+     * being thrown clear of the column that is judging it. `press` and `grab`
+     * are the other half — a body left alone after it lands still slides half a
+     * metre down the slope of its own limbs, and half a metre reads as having
+     * been pushed.
+     *
+     * Turn `impulse` up if you want a knockback; nothing else has to change.
+     *
+     * @see CelestialRendAbility#_judge
+     */
+    judge: {
+      reach: 1.0, // how far it takes, × the footprint — exactly the circle
+      impulse: 0.0, // the blow, sideways. Zero: judgment does not scatter people
+      lift: 0.25, // just enough that the body buckles rather than drops
+      spin: 0.0, // no torque either — it goes down where it stood
+      press: 1.6, // metres/second the light presses a held body onto the stone
+      grab: 9.0, // how fast its sideways momentum is scrubbed off, per second
+      grabY: 1.6, // ... and the vertical, where gravity keeps most of its say
+      stagger: 0.5, // seconds the circle's burns are spread over
+      devour: 0.85, // fractions of a body per second, once it starts
+      markMotes: 26, // the trickle off a body that has been marked
+      burnMotes: 90, // ... and what comes off it while it goes
+      condemnSparks: 30, // the frame its legs go out from under it
+      condemnRing: 0.9, // the ring of light closing on that spot, metres
+      takenBurst: 1.1, // and the flare as it finishes
+      takenMotes: 90,
+      takenShake: 0.07
+    },
+
+    /* --- dynamic light --- */
+    /**
+     * Gold, high, and seated partway up the shaft rather than on the floor. It
+     * has to be: this is the only light the shards ever get on the side that
+     * faces the column, and a lamp at the foot of a thirty-metre beam leaves
+     * everything hanging beside its head unlit.
+     */
+    lightIntensity: 30,
+    lightRadius: 26,
+    lightPulse: 0.4, // how much of the light the toll envelope owns
+    lightHeight: 0.16, // where it sits, × the column's height
+    lightColor: '#ffcf7a'
+  },
+
+  /* ------------------------------------------------------------------ */
   /* Camera rig                                                          */
   /* ------------------------------------------------------------------ */
   camera: {
@@ -5327,7 +5834,8 @@ export const ELEMENTS = [
   'quake',
   'ink',
   'astral',
-  'cascade'
+  'cascade',
+  'rend'
 ];
 
 /**
@@ -5408,6 +5916,13 @@ export const ELEMENT_META = {
     accent: '#3ff0e0',
     key: 'Y',
     hint: 'Baleful Cascade Mark',
+    cast: CastShape.ZONE
+  },
+  rend: {
+    label: 'Celestial Rend',
+    accent: '#ffcf7a',
+    key: 'I',
+    hint: 'Judgment Cascade',
     cast: CastShape.ZONE
   }
 };
