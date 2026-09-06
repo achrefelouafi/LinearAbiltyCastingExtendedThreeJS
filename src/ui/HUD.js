@@ -45,7 +45,8 @@ export class HUD {
         <div><strong>J</strong> — Crystallized Venom Surge</div>
         <div><strong>M</strong> — Brutalist Earth Blast</div>
         <div><strong>L</strong> — Ink-paint Water Zone</div>
-        <div class="hud__help-note">V, X, B, Z, N and L are far casts — aimed with a circle, not an arrow.</div>
+        <div><strong>U</strong> — Astral Void Blast &nbsp; <strong>Y</strong> — Baleful Cascade</div>
+        <div class="hud__help-note">V, X, B, Z, N, L, U and Y are far casts — aimed with a circle, not an arrow.</div>
         <div><strong>Move</strong> — aim &nbsp; <strong>Left click</strong> — cast</div>
         <div><strong>Esc / right click</strong> — cancel the cast</div>
         <div><strong>Right drag</strong> — orbit &nbsp; <strong>Scroll</strong> — zoom</div>
@@ -56,6 +57,7 @@ export class HUD {
         <div class="hud__help-note">Any cast that reaches a target one-shots it.</div>
         <div class="hud__help-note">The Chrono-Summon picks its own: it cuts them in half.</div>
         <div class="hud__help-note">The Sumi Tide picks its own too: it drags them under.</div>
+        <div class="hud__help-note">So does the Baleful Cascade: it throws its own blades at them.</div>
         <div class="hud__help-note">Paused still applies every editor change.</div>
       </div>
 

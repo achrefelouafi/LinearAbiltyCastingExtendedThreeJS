@@ -1,4 +1,4 @@
-import { ShaderMaterial, NormalBlending, Color, Vector3, BackSide } from 'three';
+import { ShaderMaterial, NormalBlending, Color, Vector3, Vector4, BackSide } from 'three';
 import { noiseGLSL } from '../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../core/FrameUniforms.js';
@@ -28,6 +28,15 @@ import { getColor } from '../utils/color.js';
  *     the march stops as soon as the ink is opaque, and the step count is a
  *     live slider so a laptop and a demo machine run the same build.
  *
+ * And one that is not the Bloom's: **it stands back from what the tide is
+ * holding**. Clipping against the depth prepass keeps the ink off everything
+ * *behind* it, which is what makes the character look veiled rather than
+ * pasted over — but a body wound into the middle of the vortex has metres of
+ * ink between it and the camera, and all of that ink is legitimately in front.
+ * So the tide hands the volume the bodies it has hold of (`uClears`) and the
+ * march opens the *near* half of those rays: the pigment parts ahead of a
+ * corpse and closes again behind it. See `openTo` in the main loop.
+ *
  * Two things make it ink rather than green fog with the colours changed:
  *
  * **It absorbs.** The gas in the Caustic Bloom is lit from underneath and
@@ -41,6 +50,19 @@ import { getColor } from '../utils/color.js';
  * and what a spin does not. Turn the whole volume at one rate and it reads as a
  * cylinder of noise being rotated.
  */
+
+/**
+ * How many held bodies the ink can be asked to stand back from at once.
+ *
+ * A tide can have sixteen; this is the number that reach the shader, and it is
+ * eight because the ones that matter are the ones near the middle — beyond
+ * that they are stacked on each other and share a parting anyway. The array is
+ * a fixed-size uniform, so this is also the loop bound the compiler unrolls.
+ */
+const MAX_CLEARANCES = 8;
+
+/** Handed to `sync` when a tide is holding nothing. */
+const EMPTY = [];
 
 const VOLUME_VERTEX = /* glsl */ `
   varying vec3 vWorld;
@@ -104,7 +126,14 @@ const VOLUME_FRAGMENT = /* glsl */ `
   ${commonGLSL}
 
   #define MAX_STEPS 64
+  #define MAX_CLEAR ${MAX_CLEARANCES}
   #define TAU 6.28318530718
+
+  /** The bodies the tide has hold of: world centre in xyz, metres in w. */
+  uniform int   uClearCount;
+  uniform vec4  uClears[MAX_CLEAR];
+  uniform float uClear;      // how far the ink stands back, 0..1
+  uniform float uClearFade;  // metres it closes over, behind the body
 
   /**
    * Where the ray is inside the funnel, and how far up it is.
@@ -248,6 +277,28 @@ const VOLUME_FRAGMENT = /* glsl */ `
     t1 = min(t1, sceneT);
     if (t1 <= t0) discard;
 
+    /* ---- and stand it back from whatever the tide is holding ---- */
+    // Solved once per ray rather than per sample: which held body this ray
+    // passes through, how far along it is, and how squarely — none of that
+    // moves as the march advances, so the loop below pays one smoothstep.
+    // openTo is the distance the ink has to be out of the way to, and openBy
+    // how completely; a feathered footprint rather than a hard disc,
+    // because a hard-edged hole in a volume reads as a hole and nothing else.
+    float openTo = 0.0;
+    float openBy = 0.0;
+    for (int i = 0; i < MAX_CLEAR; i++) {
+      if (i >= uClearCount) break;
+      vec3 toBody = uClears[i].xyz - ro;
+      float along = dot(toBody, rd);
+      if (along <= 0.0) continue;
+      float miss = length(toBody - rd * along);
+      float inside = 1.0 - smoothstep(uClears[i].w * 0.45, uClears[i].w * 1.25, miss);
+      if (inside <= 0.0) continue;
+      openTo = max(openTo, along);
+      openBy = max(openBy, inside);
+    }
+    openBy *= uClear;
+
     float steps = clamp(uSteps, 4.0, float(MAX_STEPS));
     float dt = (t1 - t0) / steps;
     // Jittered start. Without it the march bands into visible shells, and that
@@ -263,6 +314,12 @@ const VOLUME_FRAGMENT = /* glsl */ `
 
       vec3 p = ro + rd * t;
       float d = density(p);
+      // Only the ink in front of the body is moved. Behind it the volume is
+      // untouched, so the corpse is seen *through* a parting in the pigment
+      // rather than in a tube cut out of it.
+      if (openBy > 0.0) {
+        d *= 1.0 - openBy * (1.0 - smoothstep(openTo - uClearFade, openTo, t));
+      }
 
       if (d > 0.002) {
         // Daylight comes down *through* the water, so one tap toward the sun is
@@ -344,6 +401,10 @@ export function createInkVolumeMaterial() {
       uSeed: { value: 0 },
       uFade: { value: 1 },
       uOpacity: { value: 1 },
+      uClearCount: { value: 0 },
+      uClears: { value: Array.from({ length: MAX_CLEARANCES }, () => new Vector4()) },
+      uClear: { value: 0.85 },
+      uClearFade: { value: 1.1 },
       uColorDeep: { value: new Color(0.016, 0.027, 0.04) },
       uColorBody: { value: new Color(0.07, 0.21, 0.24) },
       uColorEdge: { value: new Color(0.31, 0.56, 0.57) },
@@ -394,6 +455,18 @@ export function createInkVolumeMaterial() {
     u.uAmbient.value = c.wispAmbient;
     u.uSaturate.value = c.wispSaturate;
     u.uOpacity.value = c.wispOpacity * g.opacity;
+
+    // The bodies the tide is holding, copied rather than aliased: the ability
+    // reuses one array of vectors per cast and the uniform must not follow it
+    // into the next frame's edits.
+    const clears = state.clears ?? EMPTY;
+    const count = Math.min(clears.length, MAX_CLEARANCES);
+    for (let i = 0; i < count; i++) u.uClears.value[i].copy(clears[i]);
+    u.uClearCount.value = count;
+    u.uClear.value = count > 0 ? c.wispClear : 0;
+    // Never zero: the march feathers the parting with a smoothstep, and a
+    // zero-width one is a divide by zero rather than a hard edge.
+    u.uClearFade.value = Math.max(0.05, c.wispClearFade);
 
     u.uColorDeep.value.copy(getColor(c.colorWispDeep));
     u.uColorBody.value.copy(getColor(c.colorWispBody));

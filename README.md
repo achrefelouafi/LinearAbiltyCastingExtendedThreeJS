@@ -2,9 +2,9 @@
 
 A skillshot VFX sandbox built with **Three.js**, **Vite** and hand-written **GLSL**.
 
-Twelve abilities and two ways to aim them. Seven are **line casts**: press the key to arm, a
+Fifteen abilities and two ways to aim them. Seven are **line casts**: press the key to arm, a
 League-of-Legends style arrow appears on the ground and swings with the mouse, click to fire. The
-other five are **far casts**: the arrow is replaced by a circle with a deliberately thick boundary
+other eight are **far casts**: the arrow is replaced by a circle with a deliberately thick boundary
 that follows the cursor and answers the only question a ground-targeted AoE has to answer before you
 commit — how much space is this going to take.
 
@@ -91,6 +91,20 @@ shoving the frame aside behind it. Then it does what it is for: everything insid
 knocked *inward*, lifted off the stone, wound in, stretched by a pull sampled per joint, and consumed
 at the horizon — and when the hole finally closes on itself it takes the light with it.
 
+**Y — Baleful Cascade Mark.** A far cast, built to a four-panel breakdown sheet, and the second cast
+in the sandbox that picks its own targets. A shard of cold light runs to the circle; a **ground glow**
+opens there as a pool with a lit lip; an angular **decal mark** cuts itself on over the top of it —
+a barbed four-point star inside a diamond, with a knot of hooks at its middle, every stroke a signed
+distance field measured in metres so the whole emblem re-cuts itself when you drag the footprint;
+**wisps** climb out of the ring as unbroken ribbons and are drawn inward onto the axis above them;
+and a **core mesh burst** tears up out of the middle — a crown of faceted blades, teal and violet,
+around a heart that lights the facets nearest it. Then it goes to work. It marks the nearest body
+still standing, winds up on it, and **throws its own blades**: the blade that leaves is the one
+already pointing that way, it leaves from that blade's actual tip, and the gap it leaves in the crown
+stays there until it grows back. Three arrive seventy milliseconds apart and only the last one is
+lethal — the first two draw sparks off the body and go through it. What the last one goes through
+comes apart at the waist.
+
 Everything you can see is generated. There are no textures, no sprite sheets and no meshes on
 disk except the character: the crystals are procedural geometry, the bolt is a strip of ribbon
 placed entirely by a vertex shader, the meteor is an icosphere cratered and sliced by fracture
@@ -105,7 +119,7 @@ the same CC0 ambientCG **Rock030** scan the floor is dressed with, projected tri
 metres. Procedural noise gets you stone that looks like stone; it does not get you stone that looks
 photographed, and that ability's whole read depends on the second one.
 
-**Every parameter is a live slider** — 1,983 of them — and they stay live while the simulation is
+**Every parameter is a live slider** — 2,733 of them, plus 564 colour pickers — and they stay live while the simulation is
 paused. That is the point of the project: freeze a frame mid-eruption, mid-strike or mid-burn with
 **P**, then reshape the silhouette, the palette and the timing against a still image.
 
@@ -185,6 +199,7 @@ shown as a visible sky. The stage keeps its flat dark backdrop.
 | **M** | Arm the Brutalist Earth Blast |
 | **L** | Arm the Sumi Tide — a far cast that takes hold of what it catches |
 | **U** | Arm the Astral Void Blast — a far cast that eats what it catches |
+| **Y** | Arm the Baleful Cascade Mark — a far cast that throws its own blades |
 | **Move the mouse** | Swing the aim arrow, or move the far-cast circle |
 | **Left click** | Cast along the arrow, or drop the circle where it is |
 | **Esc** / **right click** | Cancel an armed cast |
@@ -603,6 +618,58 @@ so a cut measured at the waist stays at the waist however far the corpse folds. 
 then made solid to each other (`collideRagdolls`), because two solvers that know nothing of each
 other let the torso fall straight through the legs it was cut off.
 
+
+### The cascade
+
+The Baleful Cascade Mark is the second cast that picks its own targets, and the only one that
+**spends something to do it**. The crown of blades standing over the mark is a magazine: throwing one
+takes it out of the crown, the gap is visible, and it grows back over `crownRegrow`. Fire faster than
+that and the burst visibly thins; leave it alone and it fills back in. It costs one float per blade
+and it is the whole difference between a thing spending itself and a turret with an infinite belt.
+
+**The crown is dealt on the CPU, and that is deliberate.** Everywhere else in this project the shape
+lives in the shader — the Chrono-Summon derives a tendril's bearing from its instance index and never
+tells anyone where it ended up, which is right for something that only has to be drawn. This ability
+has to *throw* a blade, so it has to answer a question a shader cannot: **where is the point of blade
+seventeen**. So `_dealCrown` writes `aDir` and `aShape` every frame, resolved from the live settings
+on the frame they are read, and `_bladeTip` reads the answer straight back out of the buffer the
+draw is about to use. Nothing is captured at spawn and dragging a slider still re-cuts a crown that
+is already standing; the deal simply happens on the other side of the bus. It is a few hundred float
+writes a frame, and it buys the one thing the layer is for.
+
+Which blade goes is chosen the same way: `_pickBlade` takes the blade already pointing nearest the
+body, so what arrives is what was standing there a frame earlier rather than a projectile the crown
+happened to spawn. The three populations — long spears for the silhouette, blades for the body,
+short shards to skirt the middle — are dealt by walking a Fibonacci spiral with a **stride coprime to
+its length**. Consecutive indices on that spiral sit at nearly the same latitude, so taking the
+populations as three blocks of it would put every spear round one pole; the coprime walk keeps the
+counts exact and scatters each population over the whole sphere.
+
+**One blade, two materials.** The crown and the volley are handed the same uniform block by identity,
+so a shot is drawn with the section, the taper, the facets and the palette of the crown it left.
+A thrown blade drawn by a second, similar shader reads as a projectile; this one reads as the crown
+coming apart. The section is a **lens** rather than a circle — the thickness is pinched to nothing at
+the two angles where the width is greatest — so the blade has a sharp edge down each side and a spine
+ridge along each face, and `flatShading` lets every one of the eight facets take the key light on its
+own. It is not a style choice: smooth-shaded, at forty instances, the burst is a bundle of carrots.
+
+**Only the last blade of a flurry is lethal.** The ones before it go through the body, draw sparks
+off it and change nothing. A body that comes apart on the first of three arrivals leaves the other
+two hitting a corpse, and three that land on the same frame read as one blade with a rendering bug.
+The cut itself lands on the frame the blade's *point* reaches the body — a fifth of a second after it
+was thrown, at the shipped numbers — and the blade keeps going out the other side, which is what
+makes it a cut rather than an impalement.
+
+**What went wrong first, twice.** The burst came out as a white star-shaped hole in the frame, and
+neither time was it the bloom (which is at 0.03 in this project and was never the problem). It was
+the *area* terms of the blade's own emissive. A rim, a vein field and a bleed from the heart each
+cover the whole surface; an edge term covers two columns of it. Summed at similar weights the areas
+win everywhere, the stone underneath stops mattering and the silhouette — the entire read of the
+reference sheet's third panel — goes with it. The shipped balance is the edge at 0.5 with a power of 14
+and every area term at or under 0.3, with a hard soft-ceiling behind them as a guard rather than as
+the mechanism. If a lit ability solid in this project ever goes white, turn the area terms off first and
+put them back one at a time; the ceiling will not save you, because by the time it engages the blade
+is already a lamp.
 
 ### Adding another ability
 

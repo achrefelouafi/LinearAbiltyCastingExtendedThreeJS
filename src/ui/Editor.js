@@ -48,6 +48,7 @@ export class Editor {
     this._buildQuake();
     this._buildInk();
     this._buildAstral();
+    this._buildCascade();
     this._buildEnvironment();
     this._buildPost();
     this._buildCamera();
@@ -3412,6 +3413,9 @@ export class Editor {
     R(wisps, c, 'wispAmbient', 0, 1, 0.005, 'ambient');
     R(wisps, c, 'wispSaturate', 0, 5, 0.01, 'deepening with density');
     R(wisps, c, 'wispOpacity', 0, 2, 0.01, 'opacity');
+    R(wisps, c, 'wispClear', 0, 1, 0.01, 'parts for held bodies');
+    R(wisps, c, 'wispClearSize', 0.2, 3, 0.01, 'parting width, metres');
+    R(wisps, c, 'wispClearFade', 0.1, 4, 0.05, 'parting closes over');
     wisps.addColor(c, 'colorWispDeep').name('thick ink');
     wisps.addColor(c, 'colorWispBody').name('body');
     wisps.addColor(c, 'colorWispEdge').name('thin ink');
@@ -3434,6 +3438,7 @@ export class Editor {
     R(grip, gc, 'windUp', 0.05, 3, 0.01, 'takes hold over');
     R(grip, gc, 'wade', 0, 2, 0.01, 'floor drops by');
     R(grip, gc, 'float', 0, 2, 0.01, 'carried at height');
+    R(grip, gc, 'crest', 0, 2, 0.01, 'higher at the axis, x');
     R(grip, gc, 'buoy', 0, 12, 0.05, 'held there how hard');
     R(grip, gc, 'rise', 0.1, 8, 0.05, 'fastest it is lifted');
     R(grip, gc, 'hold', 0, 3, 0.01, 'turns on the surface for');
@@ -3727,6 +3732,350 @@ export class Editor {
     light.addColor(c, 'lightColor').name('light colour');
 
     this.astralFolder = folder;
+  }
+
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * The Baleful Cascade Mark.
+   *
+   * Grouped by the four panels of its reference sheet, in the order they are
+   * drawn — ground glow, decal mark, wisps, core mesh burst — and then by what
+   * the burst does with itself. The two knobs worth reaching for first are
+   * `zoneRadius` (in "The cast") and `crownScale` (in "3 · The core mesh
+   * burst"): nearly every other length in this ability is a multiple of one of
+   * them, so those two re-scale the whole thing in proportion, mid-cast and
+   * while paused.
+   */
+  _buildCascade() {
+    const folder = this.gui.addFolder('✦  Baleful Cascade');
+    const c = settings.cascade;
+    const R = Editor.range;
+
+    const cast = folder.addFolder('The cast');
+    R(cast, c, 'zoneRadius', 0.5, 12, 0.05, 'footprint radius');
+    R(cast, c, 'range', 2, 50, 0.1, 'max range');
+    R(cast, c, 'minRange', 0, 10, 0.1, 'min range');
+    R(cast, c, 'speed', 5, 200, 1, 'shard speed');
+    R(cast, c, 'lifetime', 0.5, 20, 0.05, 'stands for (s)');
+    R(cast, c, 'fadeTime', 0.05, 6, 0.01, 'closes over (s)');
+    R(cast, c, 'cooldown', 0, 8, 0.05, 'cooldown');
+    R(cast, c, 'handHeight', 0, 2.5, 0.01, 'hand height');
+    R(cast, c, 'handForward', -1, 3, 0.01, 'hand forward');
+    R(cast, c, 'handSide', -2, 2, 0.01, 'hand side');
+    Editor.castAnimation(cast, c);
+
+    const order = folder.addFolder('The order it happens in');
+    R(order, c, 'glowTime', 0.02, 2, 0.01, 'glow opens over (s)');
+    R(order, c, 'markTime', 0.02, 3, 0.01, 'mark cuts on over (s)');
+    R(order, c, 'wispDelay', 0, 3, 0.01, 'wisps start at (s)');
+    R(order, c, 'wispTime', 0.05, 4, 0.01, 'wisps rise over (s)');
+    R(order, c, 'crownDelay', 0, 4, 0.01, 'burst starts at (s)');
+    R(order, c, 'crownTime', 0.05, 4, 0.01, 'burst forms over (s)');
+    R(order, c, 'fireDelay', 0, 3, 0.01, 'then waits (s)');
+    R(order, c, 'pulseRate', 0, 6, 0.01, 'bank rate');
+    R(order, c, 'pulseDepth', 0, 1.5, 0.01, 'bank depth');
+
+    const glow = folder.addFolder('4 · The ground glow');
+    R(glow, c, 'glowPool', 0, 3, 0.01, 'pool');
+    R(glow, c, 'glowPoolFalloff', 0.1, 6, 0.01, 'pool falloff');
+    R(glow, c, 'glowLip', 0, 4, 0.01, 'lip');
+    R(glow, c, 'glowLipSeat', 0.2, 1.2, 0.01, 'lip seat, x footprint');
+    R(glow, c, 'glowLipWidth', 0.01, 1, 0.005, 'lip width (m)');
+    R(glow, c, 'glowSpill', 0, 2, 0.01, 'spill past it');
+    R(glow, c, 'glowSpillReach', 1, 3, 0.01, 'spill reach, x footprint');
+    R(glow, c, 'glowSpillFalloff', 0.2, 8, 0.05, 'spill falloff');
+    R(glow, c, 'glowWobble', 0, 0.2, 0.002, 'boundary wander');
+    R(glow, c, 'glowWobbleLobes', 1, 16, 1, 'wander lobes');
+    R(glow, c, 'glowWobbleSpeed', 0, 4, 0.01, 'wander speed');
+    R(glow, c, 'glowSweep', 0, 3, 0.01, 'read head');
+    R(glow, c, 'glowSweepSpeed', -1, 1, 0.005, 'head speed, rev/s');
+    R(glow, c, 'glowSweepWidth', 0.01, 0.6, 0.005, 'head width');
+    R(glow, c, 'glowGrain', 0, 2, 0.01, 'grain');
+    R(glow, c, 'glowGrainScale', 0.1, 8, 0.05, 'grain scale');
+    R(glow, c, 'glowHeight', 0, 0.2, 0.001, 'height off floor');
+    R(glow, c, 'glowOpacity', 0, 2, 0.01, 'opacity');
+    R(glow, c, 'glowGlow', 0, 4, 0.01, 'glow');
+    glow.addColor(c, 'colorGlowCore').name('core');
+    glow.addColor(c, 'colorGlowPool').name('pool');
+    glow.addColor(c, 'colorGlowRim').name('lip');
+
+    const mark = folder.addFolder('1 · The decal mark');
+    R(mark, c, 'markLineWidth', 0.004, 0.2, 0.002, 'stroke width (m)');
+    R(mark, c, 'markLineGlow', 0, 6, 0.01, 'stroke glow');
+    R(mark, c, 'markPoints', 3, 10, 1, 'star points');
+    R(mark, c, 'markStarSharp', 2, 8, 0.01, 'barb sharpness (2 = polygon)');
+    R(mark, c, 'markStarOuter', 0.4, 1.4, 0.01, 'star reach, x footprint');
+    R(mark, c, 'markStarSpin', -0.2, 0.2, 0.001, 'star spin, rev/s');
+    R(mark, c, 'markInnerScale', 0.1, 1, 0.01, 'inner star, x outer');
+    R(mark, c, 'markInnerGain', 0, 2, 0.01, 'inner star weight');
+    R(mark, c, 'markDiamond', 0, 3, 0.01, 'diamond');
+    R(mark, c, 'markDiamondSeat', 0.2, 1.2, 0.01, 'diamond, x footprint');
+    R(mark, c, 'markDiamondAspect', 0.3, 2, 0.01, 'diamond aspect');
+    R(mark, c, 'markDiamondSpin', -0.2, 0.2, 0.001, 'diamond spin, rev/s');
+    R(mark, c, 'markSpear', 0, 3, 0.01, 'spearheads');
+    R(mark, c, 'markSpearFrom', 0.1, 1.2, 0.01, 'spear root, x footprint');
+    R(mark, c, 'markSpearTo', 0.2, 1.4, 0.01, 'spear point, x footprint');
+    R(mark, c, 'markSpearWidth', 0.005, 0.3, 0.005, 'spear width');
+    R(mark, c, 'markHooks', 0, 3, 0.01, 'hooks');
+    R(mark, c, 'markHookCount', 1, 12, 1, 'hook count');
+    R(mark, c, 'markHookSeat', 0.05, 0.8, 0.01, 'hook radius, x footprint');
+    R(mark, c, 'markHookSweep', 0.1, 3, 0.01, 'hook sweep (rad)');
+    R(mark, c, 'markHookWidth', 0.005, 0.2, 0.002, 'hook width');
+    R(mark, c, 'markHookSpin', -0.2, 0.2, 0.001, 'hook spin, rev/s');
+    R(mark, c, 'markRibs', 0, 2, 0.01, 'edge combs');
+    R(mark, c, 'markRibCount', 1, 30, 1, 'combs per edge');
+    R(mark, c, 'markRibLength', 0.02, 0.6, 0.01, 'comb length');
+    R(mark, c, 'markRibWidth', 0.02, 0.8, 0.01, 'comb width');
+    R(mark, c, 'markTicks', 0, 2, 0.01, 'rim ticks');
+    R(mark, c, 'markTickCount', 4, 120, 1, 'tick count');
+    R(mark, c, 'markTickSeat', 0.3, 1.2, 0.01, 'tick seat, x footprint');
+    R(mark, c, 'markTickLength', 0.01, 0.3, 0.005, 'tick length');
+    R(mark, c, 'markHub', 0, 3, 0.01, 'hub');
+    R(mark, c, 'markHubRing', 0.02, 0.5, 0.005, 'hub ring, x footprint');
+    R(mark, c, 'markHubDot', 0.005, 0.3, 0.005, 'hub dot, x footprint');
+    R(mark, c, 'markWash', 0, 2, 0.01, 'fill inside the star');
+    R(mark, c, 'markWashFalloff', 0.1, 6, 0.05, 'fill falloff');
+    R(mark, c, 'markGrain', 0, 2, 0.01, 'grain');
+    R(mark, c, 'markGrainScale', 0.1, 8, 0.05, 'grain scale');
+    R(mark, c, 'markHeight', 0, 0.2, 0.001, 'height off floor');
+    R(mark, c, 'markOpacity', 0, 2, 0.01, 'opacity');
+    R(mark, c, 'markGlow', 0, 4, 0.01, 'glow');
+    mark.addColor(c, 'colorMarkLine').name('line');
+    mark.addColor(c, 'colorMarkCore').name('line core');
+    mark.addColor(c, 'colorMarkDeep').name('deep fill');
+    mark.addColor(c, 'colorMarkWash').name('wash');
+    mark.addColor(c, 'colorFront').name('cutting edge');
+
+    const wisp = folder.addFolder('2 · The rising wisps');
+    R(wisp, c, 'wisps', 0, 28, 1, 'wisps');
+    R(wisp, c, 'wispSeat', 0.05, 1.4, 0.01, 'foot, x footprint');
+    R(wisp, c, 'wispSeatJitter', 0, 1, 0.01, 'foot scatter');
+    R(wisp, c, 'wispSpread', 0, 3, 0.01, 'bearing scatter');
+    R(wisp, c, 'wispHeight', 0.5, 14, 0.05, 'climb (m)');
+    R(wisp, c, 'wispHeightJitter', 0, 1, 0.01, 'climb scatter');
+    R(wisp, c, 'wispRise', 0.01, 1.5, 0.005, 'climbs / second');
+    R(wisp, c, 'wispLength', 0.05, 1.5, 0.01, 'ribbon length');
+    R(wisp, c, 'wispWander', 0, 3, 0.01, 'wander (m)');
+    R(wisp, c, 'wispWanderScale', 0.1, 8, 0.05, 'wander scale');
+    R(wisp, c, 'wispWanderSpeed', 0, 3, 0.01, 'wander speed');
+    R(wisp, c, 'wispSwirl', -4, 4, 0.01, 'turn while climbing');
+    R(wisp, c, 'wispDraw', 0, 1.5, 0.01, 'drawn into the burst');
+    R(wisp, c, 'wispDrawAt', 0, 0.98, 0.01, '... starting at');
+    R(wisp, c, 'wispWidth', 0.005, 0.4, 0.005, 'width, x climb');
+    R(wisp, c, 'wispWidthBias', 0.05, 3, 0.01, 'how fast it thins');
+    R(wisp, c, 'wispIntensity', 0, 4, 0.01, 'intensity');
+    R(wisp, c, 'wispSoftEdge', 0.1, 5, 0.05, 'edge softness');
+    R(wisp, c, 'wispErode', 0, 1, 0.01, 'break-up');
+    R(wisp, c, 'wispErodeScale', 0.2, 10, 0.05, 'break-up scale');
+    R(wisp, c, 'wispErodeSpeed', 0, 4, 0.01, 'break-up speed');
+    R(wisp, c, 'wispTailFade', 0.01, 0.6, 0.01, 'fade in over');
+    R(wisp, c, 'wispHeadFade', 0.01, 0.9, 0.01, 'fade out over');
+    R(wisp, c, 'wispSoftFade', 0, 3, 0.01, 'soft fade (m)');
+    R(wisp, c, 'wispOpacity', 0, 2, 0.01, 'opacity');
+    R(wisp, c, 'wispGlow', 0, 4, 0.01, 'glow');
+    wisp.addColor(c, 'colorWispRoot').name('root');
+    wisp.addColor(c, 'colorWispBody').name('body');
+    wisp.addColor(c, 'colorWispTip').name('tip');
+
+    const burst = folder.addFolder('3 · The core mesh burst');
+    R(burst, c, 'crownScale', 0.2, 5, 0.01, 'burst size');
+    R(burst, c, 'crownHeight', 0.5, 10, 0.05, 'hangs at (m)');
+    R(burst, c, 'crownRise', 0, 4, 0.01, 'climbs while forming (m)');
+    R(burst, c, 'crownBob', 0, 0.5, 0.005, 'breathes (m)');
+    R(burst, c, 'crownBobSpeed', 0, 3, 0.01, 'breath speed');
+    R(burst, c, 'crownSpin', -1, 1, 0.005, 'spin, rev/s');
+    R(burst, c, 'crownTilt', 0, 1.5, 0.01, 'nod (rad)');
+    R(burst, c, 'crownTiltSpeed', 0, 1, 0.005, 'nod speed, rev/s');
+    R(burst, c, 'crownSpears', 0, 24, 1, 'long spears');
+    R(burst, c, 'crownBlades', 0, 32, 1, 'blades');
+    R(burst, c, 'crownShards', 0, 32, 1, 'short shards');
+    R(burst, c, 'spearLength', 0.1, 4, 0.01, 'spear length, x size');
+    R(burst, c, 'bladeLength', 0.1, 3, 0.01, 'blade length, x size');
+    R(burst, c, 'shardLength', 0.05, 2, 0.01, 'shard length, x size');
+    R(burst, c, 'crownLengthJitter', 0, 1, 0.01, 'length scatter');
+    R(burst, c, 'crownFlatten', 0.05, 1.5, 0.01, 'squashed toward the plane');
+    R(burst, c, 'crownJitter', 0, 1, 0.01, 'heading scatter');
+    R(burst, c, 'crownInner', 0, 1, 0.005, 'root seat, x size');
+    R(burst, c, 'crownStagger', 0, 0.95, 0.01, 'assembly stagger');
+    R(burst, c, 'crownSwell', 0, 1, 0.01, 'bank opens the crown');
+    R(burst, c, 'crownViolet', 0, 1, 0.01, 'violet share');
+    R(burst, c, 'crownRegrow', 0.05, 6, 0.05, 'a blade grows back in (s)');
+    R(burst, c, 'crownRegrowDelay', 0, 4, 0.01, '... after waiting (s)');
+
+    const blade = burst.addFolder('The blade itself');
+    R(blade, c, 'bladeWaist', 0.02, 0.95, 0.01, 'widest at');
+    R(blade, c, 'bladeRootPower', 0.05, 3, 0.01, 'swell off the root');
+    R(blade, c, 'bladeTipPower', 0.05, 4, 0.01, 'draw to the point');
+    R(blade, c, 'bladeWidth', 0.01, 0.5, 0.005, 'half-width, x length');
+    R(blade, c, 'bladeThick', 0.02, 2, 0.01, 'thickness, x width');
+    R(blade, c, 'bladeEdge', 0.05, 3, 0.01, 'edge pinch');
+    R(blade, c, 'bladeBow', 0, 0.4, 0.005, 'bow, x length');
+    R(blade, c, 'bladeTwist', -3, 3, 0.01, 'twist (rad)');
+    R(blade, c, 'bladeEdgeGlow', 0, 8, 0.01, 'edge glow');
+    R(blade, c, 'bladeEdgePower', 0.5, 16, 0.1, 'edge tightness');
+    R(blade, c, 'bladeRim', 0, 4, 0.01, 'rim');
+    R(blade, c, 'bladeRimPower', 0.1, 8, 0.05, 'rim power');
+    R(blade, c, 'bladeTipGlow', 0, 6, 0.01, 'point glow');
+    R(blade, c, 'bladeTipStart', 0, 0.98, 0.01, 'point starts at');
+    R(blade, c, 'bladeVein', 0, 4, 0.01, 'flaws');
+    R(blade, c, 'bladeVeinScale', 0.2, 20, 0.1, 'flaw scale');
+    R(blade, c, 'bladeVeinBands', 0.2, 12, 0.1, 'flaws around it');
+    R(blade, c, 'bladeVeinSharp', 0.2, 8, 0.05, 'flaw sharpness');
+    R(blade, c, 'bladeHeartBleed', 0, 6, 0.01, 'lit by the heart');
+    R(blade, c, 'bladeHeartReach', 0.1, 8, 0.05, '... within (m)');
+    R(blade, c, 'bladeChargeGain', 0, 6, 0.01, 'charge gain');
+    R(blade, c, 'bladeBurnGlow', 0, 12, 0.05, 'burn edge');
+    R(blade, c, 'bladeRoughness', 0.02, 1, 0.01, 'roughness');
+    R(blade, c, 'bladeMetalness', 0, 1, 0.01, 'metalness');
+    R(blade, c, 'bladeEnv', 0, 3, 0.01, 'env (IBL)');
+    R(blade, c, 'bladeGlow', 0, 4, 0.01, 'glow');
+    blade.addColor(c, 'colorBladeBody').name('teal body');
+    blade.addColor(c, 'colorBladeFacet').name('teal facet');
+    blade.addColor(c, 'colorBladeBodyDeep').name('violet body');
+    blade.addColor(c, 'colorBladeFacetDeep').name('violet facet');
+    blade.addColor(c, 'colorBladeEdge').name('edges');
+    blade.addColor(c, 'colorBladeVein').name('flaws');
+    blade.addColor(c, 'colorBladeHot').name('point');
+
+    const heart = burst.addFolder('The heart and its halo');
+    R(heart, c, 'heartSize', 0.02, 1.5, 0.01, 'radius, x size');
+    R(heart, c, 'heartSwell', 0, 2, 0.01, 'swell at full charge');
+    R(heart, c, 'heartBoil', 0, 1, 0.005, 'silhouette churn');
+    R(heart, c, 'heartBoilScale', 0.2, 8, 0.05, 'churn scale');
+    R(heart, c, 'heartFill', 0.05, 6, 0.01, 'weighted to the axis');
+    R(heart, c, 'heartRim', 0, 4, 0.01, 'rim');
+    R(heart, c, 'heartRimPower', 0.1, 8, 0.05, 'rim power');
+    R(heart, c, 'heartFilament', 0, 4, 0.01, 'threads');
+    R(heart, c, 'heartFilamentScale', 0.2, 12, 0.05, 'thread scale');
+    R(heart, c, 'heartFilamentSpeed', 0, 4, 0.01, 'thread speed');
+    R(heart, c, 'heartIntensity', 0, 6, 0.01, 'intensity');
+    R(heart, c, 'heartChargeGain', 0, 8, 0.01, 'charge gain');
+    R(heart, c, 'heartSoftFade', 0, 3, 0.01, 'soft fade (m)');
+    R(heart, c, 'haloSize', 0.1, 8, 0.05, 'halo radius, x size');
+    R(heart, c, 'haloGlow', 0, 4, 0.01, 'halo glow');
+    R(heart, c, 'haloFalloff', 0.2, 8, 0.05, 'halo falloff');
+    R(heart, c, 'haloRays', 0, 3, 0.01, 'spokes');
+    R(heart, c, 'haloRayCount', 1, 48, 1, 'spoke count');
+    R(heart, c, 'haloRaySharp', 0.5, 24, 0.5, 'spoke sharpness');
+    R(heart, c, 'haloRaySpin', -1, 1, 0.005, 'spoke spin, rev/s');
+    R(heart, c, 'haloRingSeat', 0.05, 0.98, 0.01, 'ring seat');
+    R(heart, c, 'haloRingWidth', 0.005, 0.4, 0.005, 'ring width');
+    heart.addColor(c, 'colorHeartCore').name('heart core');
+    heart.addColor(c, 'colorHeart').name('heart');
+    heart.addColor(c, 'colorHeartEdge').name('heart edge');
+    heart.addColor(c, 'colorHaloInner').name('halo inner');
+    heart.addColor(c, 'colorHaloOuter').name('halo outer');
+
+    const throwFolder = folder.addFolder('What it throws');
+    throwFolder.add(c, 'throwEnabled').name('throws blades');
+    R(throwFolder, c, 'throwRange', 1, 40, 0.1, 'reach (m)');
+    R(throwFolder, c, 'throwInterval', 0.05, 5, 0.01, 'between flurries (s)');
+    R(throwFolder, c, 'throwWarmup', 0.01, 3, 0.01, 'winds up for (s)');
+    R(throwFolder, c, 'throwTargets', 1, 6, 1, 'bodies per flurry');
+    R(throwFolder, c, 'throwBlades', 1, 6, 1, 'blades per body');
+    R(throwFolder, c, 'throwStagger', 0, 0.6, 0.005, 'between blades (s)');
+    R(throwFolder, c, 'throwAim', 0, 1, 0.01, 'where up the body');
+    R(throwFolder, c, 'throwLife', 0.05, 3, 0.01, 'on screen for (s)');
+    R(throwFolder, c, 'throwStrike', 0.02, 0.95, 0.01, 'arrives at');
+    R(throwFolder, c, 'throwHold', 0.05, 1, 0.01, 'starts to go at');
+    R(throwFolder, c, 'throwLength', 0.1, 4, 0.01, 'blade length (m)');
+    R(throwFolder, c, 'throwSmear', 0, 3, 0.01, 'speed smear');
+    R(throwFolder, c, 'throwSpin', 0, 8, 0.05, 'spin, rev/life');
+    R(throwFolder, c, 'throwCurve', 0, 1, 0.01, 'bow off the line');
+    R(throwFolder, c, 'throwLoft', -0.5, 0.5, 0.005, 'lift off the line');
+    R(throwFolder, c, 'throwOverrun', 0, 8, 0.05, 'carries on past (m)');
+    R(throwFolder, c, 'throwHeat', 0, 4, 0.01, 'runs hotter by');
+    R(throwFolder, c, 'throwFlare', 0, 8, 0.05, 'flare as it lands');
+    R(throwFolder, c, 'throwShake', 0, 1, 0.005, 'throw shake');
+    R(throwFolder, c, 'throwFlash', 0, 1, 0.005, 'throw flash');
+
+    const cut = throwFolder.addFolder('The cut');
+    R(cut, c.cutHit, 'impulse', 0, 20, 0.1, 'impulse');
+    R(cut, c.cutHit, 'lift', 0, 20, 0.1, 'lift');
+    R(cut, c.cutHit, 'spin', 0, 10, 0.05, 'spin');
+    R(cut, c, 'cutSparks', 0, 400, 1, 'sparks');
+    R(cut, c, 'cutMotes', 0, 300, 1, 'motes');
+    R(cut, c, 'cutChips', 0, 150, 1, 'chips');
+    R(cut, c, 'cutSpeed', 0, 20, 0.1, 'spray speed');
+    R(cut, c, 'cutBurst', 0, 4, 0.01, 'pressure shell (m)');
+    R(cut, c, 'cutShake', 0, 1, 0.005, 'shake');
+    R(cut, c, 'cutFlash', 0, 1, 0.005, 'flash');
+    R(cut, c, 'grazeSparks', 0, 200, 1, 'sparks off a graze');
+    R(cut, c, 'launchSparks', 0, 200, 1, 'sparks off the launch');
+    R(cut, c, 'launchChips', 0, 60, 1, 'chips off the launch');
+    R(cut, c, 'trailRate', 0, 600, 5, 'trail sparks / s');
+
+    const particles = folder.addFolder('5 · Motes, sparks, chips and mist');
+    R(particles, c, 'moteRate', 0, 400, 1, 'motes / s');
+    R(particles, c, 'moteSize', 0.005, 0.4, 0.005, 'mote size');
+    R(particles, c, 'moteLifetime', 0.1, 8, 0.05, 'mote life');
+    R(particles, c, 'moteSpeed', 0, 8, 0.05, 'mote speed');
+    R(particles, c, 'moteRise', -4, 4, 0.05, 'mote rise');
+    R(particles, c, 'moteTurbulence', 0, 3, 0.01, 'mote turbulence');
+    R(particles, c, 'moteSeat', 0, 1.5, 0.01, 'lifted out to');
+    Editor.gradient(particles, c, 'colorMote', 'mote gradient');
+    R(particles, c, 'sparkSize', 0.005, 0.4, 0.005, 'spark size');
+    R(particles, c, 'sparkLifetime', 0.05, 4, 0.05, 'spark life');
+    R(particles, c, 'sparkSpeed', 0, 30, 0.1, 'spark speed');
+    R(particles, c, 'sparkGravity', -20, 5, 0.1, 'spark gravity');
+    Editor.gradient(particles, c, 'colorSpark', 'spark gradient');
+    R(particles, c, 'chipSize', 0.005, 0.4, 0.005, 'chip size');
+    R(particles, c, 'chipLifetime', 0.1, 8, 0.05, 'chip life');
+    R(particles, c, 'chipSpeed', 0, 20, 0.1, 'chip speed');
+    R(particles, c, 'chipGravity', -30, 5, 0.1, 'chip gravity');
+    R(particles, c, 'chipSpin', 0, 20, 0.1, 'chip spin');
+    Editor.gradient(particles, c, 'colorChip', 'chip gradient');
+    R(particles, c, 'mistRate', 0, 60, 0.5, 'mist / s');
+    R(particles, c, 'mistSize', 0.05, 4, 0.05, 'mist size');
+    R(particles, c, 'mistLifetime', 0.2, 10, 0.05, 'mist life');
+    R(particles, c, 'mistSpeed', 0, 6, 0.05, 'mist speed');
+    R(particles, c, 'mistRise', -2, 3, 0.01, 'mist rise');
+    R(particles, c, 'mistSeat', 0, 1.5, 0.01, 'mist seat');
+    R(particles, c, 'mistOpacity', 0, 1, 0.01, 'mist opacity');
+    Editor.gradient(particles, c, 'colorMist', 'mist gradient');
+
+    const impact = folder.addFolder('Impact, camera and light');
+    R(impact, c, 'castMotes', 0, 200, 1, 'motes off the hand');
+    R(impact, c, 'creepRate', 0, 200, 1, 'motes off the shard / s');
+    R(impact, c, 'stainRate', 0.1, 10, 0.1, 'ground marks / m');
+    R(impact, c, 'landMotes', 0, 600, 1, 'motes on landing');
+    R(impact, c, 'landSparks', 0, 400, 1, 'sparks on landing');
+    R(impact, c, 'landMist', 0, 120, 1, 'mist on landing');
+    R(impact, c, 'landBurst', 0, 10, 0.05, 'landing shell (m)');
+    R(impact, c, 'landIntensity', 0, 5, 0.01, 'landing shell glow');
+    R(impact, c, 'landShake', 0, 2, 0.005, 'landing shake');
+    R(impact, c, 'landFlash', 0, 1, 0.005, 'landing flash');
+    R(impact, c, 'shakeDuration', 0.05, 3, 0.01, 'shake decay (s)');
+    R(impact, c, 'crownMotes', 0, 600, 1, 'motes as it forms');
+    R(impact, c, 'crownSparks', 0, 600, 1, 'sparks as it forms');
+    R(impact, c, 'crownChips', 0, 200, 1, 'chips as it forms');
+    R(impact, c, 'crownShake', 0, 1, 0.005, 'forming shake');
+    R(impact, c, 'crownFlash', 0, 1, 0.005, 'forming flash');
+    R(impact, c, 'muzzleSize', 0, 4, 0.01, 'hand flash (m)');
+    R(impact, c, 'muzzleIntensity', 0, 5, 0.01, 'hand flash glow');
+    R(impact, c, 'castFlash', 0, 1, 0.005, 'cast flash');
+    R(impact, c, 'holdShake', 0, 0.4, 0.001, 'standing rumble');
+    R(impact, c, 'rumble', 0, 0.4, 0.001, 'travel rumble');
+    R(impact, c, 'stainRadius', 0.05, 4, 0.05, 'stain radius');
+    R(impact, c, 'stainLife', 0.1, 20, 0.1, 'stain life');
+    R(impact, c, 'stainIntensity', 0, 3, 0.01, 'stain intensity');
+    impact.addColor(c, 'colorStain').name('stain');
+    impact.addColor(c, 'colorStainEdge').name('stain edge');
+    impact.addColor(c, 'colorBurstA').name('burst core');
+    impact.addColor(c, 'colorBurstB').name('burst mid');
+    impact.addColor(c, 'colorBurstC').name('burst edge');
+    impact.addColor(c, 'colorCastFlash').name('cast flash colour');
+    impact.addColor(c, 'colorFlash').name('flash colour');
+
+    const light = folder.addFolder('Dynamic light');
+    R(light, c, 'lightIntensity', 0, 80, 0.5, 'light intensity');
+    R(light, c, 'lightRadius', 0.5, 40, 0.1, 'light radius');
+    R(light, c, 'lightHeight', 0, 1, 0.01, 'height in the burst');
+    R(light, c, 'lightPulse', 0, 2, 0.01, 'bank owns');
+    light.addColor(c, 'lightColor').name('light colour');
+
+    this.cascadeFolder = folder;
   }
 
   /* ------------------------------------------------------------------ */

@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, CylinderGeometry, Vector3 } from 'three';
+import { Mesh, PlaneGeometry, CylinderGeometry, Vector3, Vector4 } from 'three';
 import { Ability, AbilityPhase } from './Ability.js';
 import { createInkPoolMaterial, createInkRefractionMaterial } from '../materials/InkPoolMaterial.js';
 import { createInkCrownMaterial, createInkColumnMaterial } from '../materials/InkCrownMaterial.js';
@@ -34,6 +34,16 @@ const VOLUME_CIRCUMSCRIBE = 1 / Math.cos(Math.PI / VOLUME_SEGMENTS);
 
 /** How many bodies one tide can have hold of at once. */
 const MAX_GRIPS = 16;
+
+/**
+ * How many of those the suspended ink is told to stand back from.
+ *
+ * The volume takes them as a fixed-size uniform array
+ * (`InkVolumeMaterial`'s `MAX_CLEARANCES`), so this has to agree with it, and
+ * it is the near ones that matter — bodies wound into the middle are stacked
+ * on each other and share one parting.
+ */
+const MAX_CLEARANCES = 8;
 
 /**
  * How the tangential current falls away outside the throat, as an exponent on
@@ -259,6 +269,19 @@ export class SumiTideAbility extends Ability {
       this._grips.push({ dummy: null, time: 0, reach: 0, under: false, depth: 0 });
     }
     this._gripCount = 0;
+    /**
+     * Where the bodies are, for the ink to open in front of.
+     *
+     * `xyz` is the body's centre and `w` the metres of ink to move, which goes
+     * to nothing as it is swallowed — so the pigment closes over a corpse
+     * exactly as the water does. Refilled in `_drag` and published by `_sync`,
+     * which means the ink is parted around where the bodies were *last* frame;
+     * at a couple of metres a second that is a centimetre, and it costs nothing
+     * to be a frame behind.
+     */
+    this._clears = [];
+    for (let i = 0; i < MAX_CLEARANCES; i++) this._clears.push(new Vector4());
+    this._clearCount = 0;
     /** Reused by `DummyField#findBodies`, so polling allocates nothing. */
     this._found = [];
     /** The blow that takes a body off its feet, refilled from settings each cast. */
@@ -326,7 +349,9 @@ export class SumiTideAbility extends Ability {
       swell: 0,
       drain: 0,
       fade: 1,
-      seed: 0
+      seed: 0,
+      // A window onto `_clears`, resized per frame rather than rebuilt.
+      clears: []
     };
   }
 
@@ -538,6 +563,7 @@ export class SumiTideAbility extends Ability {
     this._swell = 0;
     this._spin = 0;
     this._ringClock = 0;
+    this._clearCount = 0;
     this._releaseGrips();
     // The one thing a cast captures. Everything else is resolved per frame.
     this._seed = Math.random() * 100;
@@ -644,6 +670,10 @@ export class SumiTideAbility extends Ability {
     volume.drain = Easing.inQuad(dry);
     volume.fade = fade;
     volume.seed = this._seed;
+    // The ink stands back from what the tide is holding. `length` rather than a
+    // fresh array: the slots are reused, so this allocates nothing.
+    volume.clears.length = this._clearCount;
+    for (let i = 0; i < this._clearCount; i++) volume.clears[i] = this._clears[i];
     this.volumeMaterial.userData.sync(volume);
 
     // The proxy has to contain every metre the analytic shape can reach, or the
@@ -971,6 +1001,10 @@ export class SumiTideAbility extends Ability {
     // How much of the gap between the body and the water is closed this frame.
     const grab = saturate(gc.grab * dt);
 
+    // Refilled from scratch: a body dropped this frame must not leave a hole
+    // standing in the ink where it used to be.
+    this._clearCount = 0;
+
     const f = this._flow;
     f.cx = _centre.x;
     f.cz = _centre.z;
@@ -1040,10 +1074,22 @@ export class SumiTideAbility extends Ability {
       // be. The vortex's own solid-body core already turns a body once per
       // orbit; this is the spin on top of that, and it is the one that reads.
       f.spin = gc.tumble * TAU * (0.35 + (1 - reach) * 0.85) * wound;
-      // Carried highest out on the wall and let down toward the middle, and
-      // heaving with the swell — because nothing in this ability free-runs on
-      // its own sine, the bodies included.
-      f.ride = gc.float * (0.6 + reach * 0.4) * (0.7 + this._swell * 0.6) + c.poolHeight;
+      // Carried at the surface out on the open water and *heaved up* onto the
+      // crest of the throat as it comes in — and heaving with the swell,
+      // because nothing in this ability free-runs on its own sine, the bodies
+      // included.
+      //
+      // The weighting used to run the other way, and that was the bug: a body
+      // was carried highest on the rim, where nothing is in front of it, and
+      // let down by forty per cent as it reached the axis — which is the one
+      // place in this ability where the column's foot, the crown's near wall
+      // and the whole near half of the ink funnel stack up between it and the
+      // camera. The spiral is the thing the ability is *for*, and it ended
+      // with the body at its least visible. A vortex lifts what it is spinning
+      // anyway: the lip of the throat is a raised, turning ridge of water, and
+      // `crest` is how far above the open surface it stands.
+      f.ride =
+        gc.float * (1 + (1 - reach) * gc.crest) * (0.7 + this._swell * 0.6) + c.poolHeight;
       f.lift = (1 - held) * wound;
       f.sink = gc.sink * held;
 
@@ -1059,6 +1105,15 @@ export class SumiTideAbility extends Ability {
       // twice as far.
       f.slip = 1 / Math.max(0.5, gc.grab * hold);
       dummy.carry(this._field, grab * hold, grab * Math.max(wound * 0.85, held), hold);
+
+      // Tell the ink to open in front of it. Eased in with the grip, so the
+      // pigment parts as the water takes the body rather than the instant it
+      // is caught, and closed off as it goes under — a corpse below the
+      // surface is one the ink is *supposed* to be hiding.
+      if (this._clearCount < MAX_CLEARANCES) {
+        const clear = c.wispClearSize * wound * saturate((at.y + 0.7) / 0.7);
+        if (clear > 0.05) this._clears[this._clearCount++].set(at.x, at.y, at.z, clear);
+      }
 
       // The water gets *under* it before it can turn it. The solver scrubs the
       // slide off any joint touching the floor, so a corpse lying on the stone

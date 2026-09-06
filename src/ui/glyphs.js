@@ -272,6 +272,25 @@ const ASTRAL = WRAP(`
   <path d="M31 41L12 33M31 59L12 67"/>
 `);
 
+/**
+ * Cascade — a barbed four-point star inside a diamond, over a filled core.
+ *
+ * The one sigil in the set that is all *angles*: the star and the diamond are
+ * the reference sheet's decal mark reduced to the two shapes you would still
+ * recognise it by at 34px, the pair of hooks inside them are the knot at its
+ * middle, and the four short strokes on the diagonals are the barbs. The disc
+ * is filled with the slot's accent so the burst reads as a solid thing standing
+ * in the mark rather than as another outline.
+ */
+const CASCADE = WRAP(`
+  <path d="M50 5L60.5 39.5L95 50L60.5 60.5L50 95L39.5 60.5L5 50L39.5 39.5Z"/>
+  <path d="M50 26L74 50L50 74L26 50Z"/>
+  <circle cx="50" cy="50" r="5" fill="currentColor" stroke="none"/>
+  <path d="M62 42C68 50 61 58 53 57"/>
+  <path d="M38 58C32 50 39 42 47 43"/>
+  <path d="M67 33L79 21M33 33L21 21M67 67L79 79M33 67L21 79"/>
+`);
+
 /** Keyed by the ids in `ELEMENTS`. */
 export const ELEMENT_SIGILS = {
   ice: ICE,
@@ -287,5 +306,6 @@ export const ELEMENT_SIGILS = {
   venom: VENOM,
   quake: QUAKE,
   ink: INK,
-  astral: ASTRAL
+  astral: ASTRAL,
+  cascade: CASCADE
 };

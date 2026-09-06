@@ -4210,6 +4210,21 @@ export const settings = {
     wispAmbient: 0.08,
     wispSaturate: 2.4, // how much thick ink deepens
     wispOpacity: 1.0,
+    /**
+     * How far the ink stands back from a body the tide is holding.
+     *
+     * The volume is clipped against the depth prepass, so it never draws over
+     * anything *behind* it — but a body wound into the middle has metres of
+     * pigment between it and the camera, all of it legitimately in front, and
+     * that is what used to swallow the spiral whole. This opens the near half
+     * of the rays that pass through a held body and lets the ink close again
+     * behind it, so the corpse is seen *through* a parting rather than in a
+     * tube cut out of the volume. At 0 the ink ignores them, which is the old
+     * behaviour; much past 0.9 and the parting starts to read as a hole.
+     */
+    wispClear: 0.85,
+    wispClearSize: 1.15, // metres of ink one body moves
+    wispClearFade: 1.1, // metres it closes over, behind the body
     colorWispDeep: '#04070a', // thick ink, in the middle of a strand
     colorWispBody: '#12363d',
     colorWispEdge: '#4e8f92', // thin ink, at its edges
@@ -4309,7 +4324,17 @@ export const settings = {
       // circle is a bowl with a metre of standing water around its rim and a
       // jet up its middle: a corpse held *at* the surface is a corpse behind
       // all of that, and the turn nobody can see may as well not happen.
-      float: 0.8, // metres above the floor the water carries the body at
+      float: 0.8, // metres above the floor the water carries the body at, at the rim
+      // ... and how much higher than that it rides at the axis.
+      //
+      // The lip of a vortex's throat is a raised ridge of water turning fast,
+      // so a body wound into the middle comes *up* — and it has to, because
+      // the middle is the one place where the jet, the crown's near wall and
+      // the near half of the ink funnel are all between it and the camera.
+      // This ran the other way for a while (the body was let down forty per
+      // cent as it arrived) and the end of the spiral, which is the whole
+      // point of the ability, was the part nobody could see.
+      crest: 0.55, // × `float`, at the axis
       buoy: 3.4, // how hard it is held there, per second
       rise: 1.6, // ... and the fastest it may be moved to get there, m/s
       // Seconds the water takes to walk a body from wherever it caught it to
@@ -4699,6 +4724,478 @@ export const settings = {
   },
 
   /* ------------------------------------------------------------------ */
+  /* CASCADE — the Baleful Cascade Mark                                  */
+  /* ------------------------------------------------------------------ */
+  /**
+   * A far cast built to a four-panel breakdown sheet, and the second cast in
+   * the sandbox that picks its own targets.
+   *
+   * The block is laid out in the order of the sheet — glow, mark, wisps, core
+   * mesh burst — followed by what the burst *does*. The two knobs worth
+   * reaching for first are `zoneRadius` (in the cast) and `crownScale` (in the
+   * burst): almost every other length here is a multiple of one of them, so
+   * those two re-scale the whole thing in proportion, mid-cast and while
+   * paused.
+   */
+  cascade: {
+    /* --- the cast --- */
+    range: 24.0, // maximum cast distance, metres
+    minRange: 0.0, // it is a zone: dropping it at your own feet is allowed
+    zoneRadius: 4.0, // the footprint — what the circle indicator measures out
+    speed: 66.0, // how fast the shard runs to the point, metres/second
+    cooldown: 3.4,
+    castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
+    lifetime: 7.0, // seconds the mark stands, once it has opened
+    fadeTime: 2.0, // seconds it takes to close
+
+    /* --- the order things happen in, seconds from the shard landing --- */
+    /**
+     * The mark is a *sequence*, and this is it. Nothing here overlaps by
+     * accident: the glow has to be down before the line work is cut into it,
+     * the wisps have to be climbing before there is anything for them to feed,
+     * and the crown has to be whole before it is allowed to throw.
+     */
+    glowTime: 0.34, // the pool opens out to the boundary
+    markTime: 0.52, // the line work cuts itself on behind it
+    wispDelay: 0.22, // ... and the first wisps are already leaving the floor
+    wispTime: 0.9, // how long they take to reach full height
+    crownDelay: 0.5, // when the blades start to tear out of the middle
+    crownTime: 0.8, // how long the burst takes to assemble
+    fireDelay: 0.3, // seconds after that before the first flurry
+
+    /* --- where the shard leaves the caster --- */
+    handHeight: 1.25, // metres above the floor
+    handForward: 0.62, // metres in front of the caster
+    handSide: -0.14, // metres to the side (+ follows `Ability#side`)
+
+    /* --- the pulse everything glowing rides --- */
+    /**
+     * Not a heartbeat and not a breath: a **bank**. Two sines a fifth apart,
+     * cubed, so the envelope spends most of its time down in a long trough and
+     * briefly comes up — a thing that glows evenly is friendly, and this one
+     * should not be. The glow brightens on it, the mark brightens on it, the
+     * wisps thicken on it and the light swells on it: one number, four passes.
+     */
+    pulseRate: 1.05, // radians/second through the envelope
+    pulseDepth: 0.6, // how hard it modulates, 0 = flatline
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 4 — the ground glow                                           */
+    /* ------------------------------------------------------------------ */
+    glowHeight: 0.008, // hover distance above the floor, metres
+    glowPool: 0.9, // the soft body of light
+    glowPoolFalloff: 1.7,
+    glowLip: 0.75, // the band just inside the boundary — what makes it a pool
+    glowLipSeat: 0.9, // × footprint
+    glowLipWidth: 0.32, // metres
+    glowSpill: 0.2, // the low wash reaching out past it
+    glowSpillReach: 1.45, // × footprint
+    glowSpillFalloff: 2.7,
+    glowWobble: 0.012, // how far the boundary wanders, × footprint
+    glowWobbleLobes: 7,
+    glowWobbleSpeed: 0.5,
+    glowGrain: 0.28,
+    glowGrainScale: 1.6,
+    glowSweep: 0.45, // a read head turning round the pool
+    glowSweepSpeed: 0.08, // revolutions/second
+    glowSweepWidth: 0.2,
+    glowOpacity: 1.0,
+    glowGlow: 0.95,
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 1 — the decal mark                                            */
+    /* ------------------------------------------------------------------ */
+    markHeight: 0.03, // metres above the floor — over the glow, under the mist
+    markLineWidth: 0.034, // stroke thickness, metres
+    markLineGlow: 1.45,
+
+    markPoints: 4, // the star the whole emblem is built on
+    markStarOuter: 0.94, // its points, × footprint
+    markStarSharp: 3.2, // 2 is the polygon; markPoints is the sharpest star
+    markStarSpin: 0.012, // revolutions/second
+    markInnerScale: 0.62, // the second star inside it, × the first
+    markInnerGain: 0.75,
+
+    markDiamond: 1.0, // the rhombus framing them
+    markDiamondSeat: 0.5, // half-diagonal, × footprint
+    markDiamondAspect: 1.0, // 1 is square-on; under 1 flattens it
+    markDiamondSpin: -0.008, // counter to the star
+
+    markSpear: 1.0, // the barbs driven out along the star's points
+    markSpearFrom: 0.36, // where one starts, × footprint
+    markSpearTo: 0.9, // ... and where its point ends up
+    markSpearWidth: 0.055, // half-width at the base, × footprint
+
+    markHooks: 1.0, // the knot of curls in the middle
+    markHookCount: 4,
+    markHookSeat: 0.26, // radius, × footprint
+    markHookSweep: 0.8, // radians each one covers
+    markHookWidth: 0.05, // half-width where it leaves the hub, × footprint
+    markHookSpin: 0.022,
+
+    markRibs: 0.5, // the comb down each edge of the diamond
+    markRibCount: 9,
+    markRibLength: 0.16, // how far in from the edge they reach
+    markRibWidth: 0.22,
+
+    markTicks: 0.35, // graduations around the rim
+    markTickCount: 32,
+    markTickSeat: 0.72, // × footprint
+    markTickLength: 0.07,
+
+    markHub: 1.0, // the ring and the dot at the middle
+    markHubRing: 0.1, // × footprint
+    markHubDot: 0.05,
+
+    markWash: 0.32, // the fill inside the star
+    markWashFalloff: 1.6,
+    markGrain: 0.45, // break-up over that fill
+    markGrainScale: 2.4,
+    markOpacity: 1.0,
+    markGlow: 0.9,
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 2 — the rising wisps                                          */
+    /* ------------------------------------------------------------------ */
+    wisps: 20, // ribbons climbing out of the mark (capacity is 28)
+    wispSeat: 0.57, // where a foot is planted, × footprint
+    wispSeatJitter: 0.44,
+    wispSpread: 1.11, // how far bearings scatter off even spacing
+    wispHeight: 4.4, // how far one climbs, metres
+    wispHeightJitter: 0.28,
+    wispRise: 0.15, // climbs per second — each wisp is on its own loop
+    wispLength: 0.86, // how much of the climb one ribbon covers at once
+    wispWander: 0.13, // metres the spine wanders off the vertical
+    wispWanderScale: 1.7,
+    wispWanderSpeed: 0.32,
+    wispSwirl: -1.25, // radians it turns about the mark while climbing
+    /**
+     * How far the top of a wisp is pulled onto the crown's axis, and where the
+     * pull starts. This is the single term that makes layer 2 belong to layer 3
+     * rather than sharing a shot with it: at 1 the wisps rise straight and the
+     * burst is a separate object hanging over some smoke; at 0.2 they visibly
+     * feed it.
+     */
+    wispDraw: 0,
+    wispDrawAt: 0.43,
+    wispWidth: 0.055, // half-width, × its own height
+    wispWidthBias: 0.45, // how fast it thins as it climbs
+    wispIntensity: 1.44,
+    wispSoftEdge: 3.85, // how soft it is across the ribbon
+    wispErode: 0.72, // how far noise eats into it
+    wispErodeScale: 3.1,
+    wispErodeSpeed: 0.87,
+    wispHeadFade: 0.01, // how much of the top it spends disappearing
+    wispTailFade: 0.12, // ... and how fast it arrives at the bottom
+    wispSoftFade: 0, // metres of soft fade where it meets geometry
+    wispOpacity: 0.85,
+    wispGlow: 1.0,
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 3 — the core mesh burst                                       */
+    /* ------------------------------------------------------------------ */
+    crownHeight: 3.1, // where the burst hangs, metres above the floor
+    crownRise: 0.9, // how far it climbs while it assembles, metres
+    crownScale: 1.65, // master size — every blade length is a multiple of it
+    crownBob: 0.05, // metres it breathes up and down
+    crownBobSpeed: 0.55,
+    crownSpin: 0.03, // revolutions/second about the vertical
+    crownTilt: 0.22, // radians it nods off that vertical
+    crownTiltSpeed: 0.05, // ... and how slowly, revolutions/second
+
+    /**
+     * The three populations, and the whole read of the panel.
+     *
+     * Long spears define the silhouette, blades fill the body, and short shards
+     * skirt the middle so the burst has a base instead of a hole. Make them all
+     * one length and it is a sea urchin.
+     */
+    crownSpears: 10, // ... capacity across all three is 56
+    crownBlades: 16,
+    crownShards: 14,
+    spearLength: 1.85, // × crownScale
+    bladeLength: 1.0,
+    shardLength: 0.55,
+    crownLengthJitter: 0.28,
+
+    /**
+     * How far the sphere of headings is squashed toward the equator.
+     *
+     * At 1 the blades are dealt evenly over a ball, which from the sandbox's
+     * three-quarter camera reads as a hedgehog. Pulled down to about 0.7 the
+     * burst has a plane in it and reads as a *star* from every angle the rig
+     * can reach, without ever collapsing into the flat disc a fixed billboard
+     * would give.
+     */
+    crownFlatten: 0.72,
+    crownJitter: 0.16, // scatter off the even deal
+    crownInner: 0.16, // where a blade is rooted, × crownScale
+    crownStagger: 0.4, // how much of the assembly one blade may lag by
+    crownSwell: 0.12, // how far the pulse opens and closes the crown
+    crownViolet: 0.42, // the share of blades dealt the violet stone
+
+    /**
+     * How long a thrown blade takes to grow back, and how long the gap it left
+     * stays empty first.
+     *
+     * The crown is a magazine: fire faster than this and the burst visibly
+     * thins, leave it alone and it fills back in. Raise `crownRegrow` past a
+     * couple of seconds and a sustained flurry will strip it bare, which is
+     * worth seeing once.
+     */
+    crownRegrow: 0.9,
+    crownRegrowDelay: 0.35,
+
+    /* --- the blade itself: shared by the crown and everything it throws --- */
+    /**
+     * The cross-section is a **lens**, not a circle: the thickness is pinched
+     * to nothing at the two angles where the width is greatest, so the blade
+     * has a sharp edge down each side and a spine ridge along each face.
+     * `bladeEdge` is how hard that pinch is — at 0.2 it is a spindle, at 1 it
+     * is a scalpel.
+     */
+    bladeWaist: 0.22, // where it is widest, 0 root → 1 point
+    bladeRootPower: 0.55, // how fast it swells off the root
+    bladeTipPower: 0.9, // how sharply it draws out to the point
+    bladeWidth: 0.085, // half-width at the waist, × its own length
+    bladeThick: 0.4, // thickness, × that half-width
+    bladeEdge: 0.8,
+    bladeBow: 0.04, // how far the spine bows, × length
+    bladeTwist: 0.3, // radians it winds about itself, root to point
+
+    bladeEdgeGlow: 0.5, // the two sharp edges lighting up
+    bladeEdgePower: 14.0, // how tightly that light is held to them
+    bladeRim: 0.12, // sheath around the silhouette
+    bladeRimPower: 2.6,
+    bladeTipGlow: 0.35, // the point
+    bladeTipStart: 0.8, // where that starts, along the blade
+    bladeVein: 0.3, // flaws running inside the stone
+    bladeVeinScale: 5.5,
+    bladeVeinBands: 3.0,
+    bladeVeinSharp: 3.4,
+    /**
+     * How hard the heart lights the blades nearest it, and how far that reaches
+     * in metres. This is what makes forty separate solids read as one object:
+     * turn it off and the burst is a lamp parked in a pile of glass.
+     */
+    bladeHeartBleed: 0.12,
+    bladeHeartReach: 1.3,
+    bladeChargeGain: 0.85, // how much brighter the crown runs while winding up
+    bladeBurnGlow: 4.0, // the edge left where a blade is being eaten back
+    bladeRoughness: 0.45,
+    bladeMetalness: 0.05,
+    bladeEnv: 0.25, // how much of the probe the crystal picks up
+    bladeGlow: 1.0,
+
+    /* --- the heart --- */
+    heartSize: 0.24, // radius, metres, × crownScale
+    heartSwell: 0.35, // how much bigger it runs at full charge
+    heartBoil: 0.13, // how far its silhouette churns
+    heartBoilScale: 2.4,
+    heartFill: 1.6, // how hard the white is weighted toward the axis
+    heartRim: 0.9,
+    heartRimPower: 2.2,
+    heartFilament: 1.0, // threads turning inside it
+    heartFilamentScale: 4.2,
+    heartFilamentSpeed: 0.55,
+    heartIntensity: 0.5,
+    heartChargeGain: 1.5,
+    heartSoftFade: 0.4, // metres of soft fade where it meets the blades
+
+    /* --- the halo --- */
+    haloSize: 2.3, // radius, metres, × crownScale
+    haloGlow: 0.22,
+    haloFalloff: 2.6,
+    haloRays: 0.3, // spokes combed out of the burst
+    haloRayCount: 16,
+    haloRaySharp: 6,
+    haloRaySpin: 0.02,
+    haloRingSeat: 0.62, // a thin ring, × halo radius
+    haloRingWidth: 0.05,
+
+    /* ------------------------------------------------------------------ */
+    /* What the burst does                                                 */
+    /* ------------------------------------------------------------------ */
+    /**
+     * It picks the nearest body still standing inside `throwRange`, winds up
+     * for `throwWarmup` — which is what the heart's charge and the lit blade
+     * tips are showing you — and then throws `throwBlades` of its own blades at
+     * it, `throwStagger` apart.
+     *
+     * **Only the last blade of a flurry is lethal.** The ones before it go
+     * through and draw sparks off the body; the last one takes it apart. A body
+     * that comes apart on the first of three arrivals leaves the other two
+     * hitting a corpse, and three landing on the same frame read as one blade
+     * with a rendering bug.
+     */
+    throwEnabled: true,
+    throwRange: 12.0, // metres from the burst
+    throwInterval: 0.75, // seconds between flurries
+    throwWarmup: 0.3, // seconds it winds up before one leaves
+    throwTargets: 1, // bodies taken per flurry
+    throwBlades: 3, // blades sent at each of them
+    throwStagger: 0.07, // seconds between those
+    throwAim: 0.62, // where up the body they land, 0 feet 1 head
+
+    throwLife: 0.55, // seconds a blade is on screen
+    throwStrike: 0.34, // the fraction of that spent arriving — the cut frame
+    throwHold: 0.5, // ... and how long before it starts to be spent
+    throwLength: 1.45, // metres, root to point
+    throwSmear: 0.5, // how much longer it draws out while it is fast
+    throwSpin: 1.4, // revolutions over its life, about its own axis
+    /**
+     * How far off the straight line the path bows, and the lift on it. Blades
+     * of one flurry bow alternate ways, so three of them fan out and converge
+     * rather than arriving as a bundle of parallel rods.
+     */
+    throwCurve: 0.22, // × the distance to the body
+    throwLoft: 0.05,
+    throwOverrun: 2.4, // metres it carries on past, after the cut
+    throwHeat: 1.2, // how much hotter a thrown blade runs than a standing one
+    throwFlare: 2.6, // ... and the flash as it goes through
+    throwShake: 0.14,
+    throwFlash: 0.14,
+
+    /**
+     * How the two halves leave. Lower than the field's own numbers on purpose:
+     * this is a cut, not a blast, and a body that is *thrown* by being cut in
+     * half reads as an explosion going off inside it.
+     */
+    cutHit: { impulse: 3.6, lift: 2.6, spin: 1.8 },
+    cutSparks: 110, // what comes out of the wound, across the cut
+    cutMotes: 70,
+    cutChips: 26,
+    cutSpeed: 5.2,
+    cutBurst: 0.62, // metres the pressure shell over the wound opens to
+    cutShake: 0.18,
+    cutFlash: 0.12,
+    grazeSparks: 34, // ... and what a non-lethal blade draws off it
+
+    launchSparks: 26, // what comes off the crown as a blade tears out
+    launchChips: 6,
+    trailRate: 220, // sparks per second behind a blade in the air
+
+    /* ------------------------------------------------------------------ */
+    /* Layer 5 — motes, sparks, chips and mist                             */
+    /* ------------------------------------------------------------------ */
+    moteRate: 80, // cold motes lifted off the mark, per second
+    moteSize: 0.055,
+    moteLifetime: 2.6,
+    moteSpeed: 0.9,
+    moteRise: 0.5, // gravity, so they climb
+    moteTurbulence: 0.65,
+    moteSeat: 0.9, // how far out over the footprint they are lifted
+    colorMoteA: '#ffffff',
+    colorMoteB: '#a8fff0',
+    colorMoteC: '#2ecfc4',
+    colorMoteD: '#0a3038',
+
+    sparkSize: 0.07, // velocity-aligned streaks: trails and wounds
+    sparkLifetime: 0.9,
+    sparkSpeed: 6.0,
+    sparkGravity: -1.6,
+    colorSparkA: '#ffffff',
+    colorSparkB: '#ccfff6',
+    colorSparkC: '#4fd8ff',
+    colorSparkD: '#1a2a6b',
+
+    chipSize: 0.07, // chips of the same crystal the blades are cut from
+    chipLifetime: 2.4,
+    chipSpeed: 3.2,
+    chipGravity: -5.5,
+    chipSpin: 5.0,
+    colorChipA: '#cffff6',
+    colorChipB: '#4fd0c8',
+    colorChipC: '#2a3f8a',
+    colorChipD: '#101a2e',
+
+    mistRate: 5, // the low bank the mark stands in
+    mistSize: 0.95,
+    mistLifetime: 3.6,
+    mistSpeed: 0.5,
+    mistRise: 0.16,
+    mistSeat: 0.85, // where it is laid down, × footprint
+    mistOpacity: 0.13,
+    colorMistA: '#bfe8e6',
+    colorMistB: '#6fb3b8',
+    colorMistC: '#33555f',
+    colorMistD: '#141d24',
+
+    /* --- one-shots --- */
+    castMotes: 30, // thrown from the caster's hand as the shard leaves
+    creepRate: 26, // motes off the shard while it runs across the floor
+    stainRate: 2.6, // ground marks per metre of that run
+    landMotes: 120, // ... and the gout as it lands
+    landSparks: 70,
+    landMist: 16,
+    landBurst: 2.4, // the shell the mark throws as it opens
+    landIntensity: 1.5,
+    landShake: 0.3,
+    landFlash: 0.2,
+    shakeDuration: 0.5,
+    crownMotes: 140, // what the burst throws as it snaps into place
+    crownSparks: 120,
+    crownChips: 22,
+    crownShake: 0.2,
+    crownFlash: 0.22,
+
+    muzzleSize: 0.5, // the flash at the caster's hand
+    muzzleIntensity: 1.4,
+    castFlash: 0.1,
+    holdShake: 0.035, // the standing rumble
+    rumble: 0.03, // ... and the one while the shard is running
+
+    /* --- the marks it leaves on the floor --- */
+    stainRadius: 0.8,
+    stainLife: 5.0,
+    stainIntensity: 0.45,
+    colorStain: '#101f26',
+    colorStainEdge: '#2f6f70',
+
+    /* --- the light --- */
+    lightIntensity: 12,
+    lightRadius: 12,
+    lightHeight: 0.5, // where it sits, 0 the floor 1 the burst
+    lightPulse: 0.45, // how much of it the bank owns
+
+    /* --- the palette --- */
+    colorMarkLine: '#5ff2ff',
+    colorMarkCore: '#e6ffff',
+    colorMarkDeep: '#2b6adf',
+    colorMarkWash: '#1a8fa8',
+    colorFront: '#dcffff',
+
+    colorGlowCore: '#7ffff2',
+    colorGlowPool: '#1fd3c8',
+    colorGlowRim: '#aefff4',
+
+    colorWispRoot: '#5fead8',
+    colorWispBody: '#2bc6bd',
+    colorWispTip: '#12586b',
+
+    colorBladeBody: '#08252f',
+    colorBladeFacet: '#1e8f92',
+    colorBladeBodyDeep: '#1b1240',
+    colorBladeFacetDeep: '#5f4bbd',
+    colorBladeEdge: '#3fe4ff',
+    colorBladeVein: '#a98cff',
+    colorBladeHot: '#8ff2ff',
+
+    colorHeart: '#7ff8e6',
+    colorHeartCore: '#ffffff',
+    colorHeartEdge: '#0f6f78',
+    colorHaloInner: '#9ffff0',
+    colorHaloOuter: '#166b7d',
+
+    colorBurstA: '#dffffa',
+    colorBurstB: '#3fd8cc',
+    colorBurstC: '#123a48',
+    colorCastFlash: '#a8fff0',
+    colorFlash: '#d8fffa',
+    lightColor: '#3ff0e0'
+  },
+
+  /* ------------------------------------------------------------------ */
   /* Camera rig                                                          */
   /* ------------------------------------------------------------------ */
   camera: {
@@ -4829,7 +5326,8 @@ export const ELEMENTS = [
   'venom',
   'quake',
   'ink',
-  'astral'
+  'astral',
+  'cascade'
 ];
 
 /**
@@ -4903,6 +5401,13 @@ export const ELEMENT_META = {
     accent: '#b98cff',
     key: 'U',
     hint: 'Cosmic Singularity',
+    cast: CastShape.ZONE
+  },
+  cascade: {
+    label: 'Baleful Cascade',
+    accent: '#3ff0e0',
+    key: 'Y',
+    hint: 'Baleful Cascade Mark',
     cast: CastShape.ZONE
   }
 };

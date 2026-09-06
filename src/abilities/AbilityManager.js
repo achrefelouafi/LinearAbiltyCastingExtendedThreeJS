@@ -12,6 +12,7 @@ import { VenomSurgeAbility } from './VenomSurgeAbility.js';
 import { MonolithRiftAbility } from './MonolithRiftAbility.js';
 import { SumiTideAbility } from './SumiTideAbility.js';
 import { AstralVoidAbility } from './AstralVoidAbility.js';
+import { BalefulCascadeAbility } from './BalefulCascadeAbility.js';
 import { ELEMENTS } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
@@ -30,7 +31,8 @@ const ABILITY_TYPES = {
   venom: VenomSurgeAbility,
   quake: MonolithRiftAbility,
   ink: SumiTideAbility,
-  astral: AstralVoidAbility
+  astral: AstralVoidAbility,
+  cascade: BalefulCascadeAbility
 };
 
 const MAX_CONCURRENT = 4;
