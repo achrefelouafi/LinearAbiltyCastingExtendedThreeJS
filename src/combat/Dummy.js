@@ -190,6 +190,14 @@ export class Dummy {
     this.timer = 0;
     /** 0 while the body is whole, 1 once it has burned away. */
     this.dissolve = 0;
+    /**
+     * How much of the body something *else* has taken — see `consume`.
+     *
+     * Kept apart from `dissolve` because the two run on different clocks and
+     * the loudest one wins: a corpse the void has eaten a third of still burns
+     * away on its own schedule if whatever was eating it lets go.
+     */
+    this._consumed = 0;
     /** True once the body has been parted, which is what makes it two of them. */
     this.sliced = false;
     /** True once it has gone under a surface — see `sink`. Latches the shadow off. */
@@ -660,6 +668,7 @@ export class Dummy {
     this.state = 'alive';
     this.timer = 0;
     this.dissolve = 0;
+    this._consumed = 0;
 
     // Back to the clip, from wherever the last fall left the skeleton.
     if (this.action) {
@@ -748,16 +757,39 @@ export class Dummy {
   }
 
   /**
-   * Add a velocity to every joint of every piece — a current, not a blow.
+   * Hand every joint of every piece to a velocity field — a current, not a blow.
    *
    * `kill` throws a body once, with a torque, and that is the whole damage
    * model for everything that simply *reaches*. This is for the one thing that
    * keeps acting on a body after it is down: a metre of moving water does not
-   * hit a corpse, it carries it, so it arrives as an acceleration every frame
-   * rather than as an impulse on one.
+   * hit a corpse, it carries it, so it arrives every frame as a velocity the
+   * body is dragged toward rather than as an impulse on one.
+   *
+   * The field is sampled at each joint rather than once for the body, because
+   * the water that swallows things is *turning*: it reaches the near shoulder
+   * faster than the far one, and that difference is the only thing that makes a
+   * corpse spin instead of slide. See `Ragdoll#steer`.
+   *
+   * Water also holds a body *up*, and that half cannot be done with a velocity:
+   * gravity is integrated per solver substep while this arrives per frame, so a
+   * current strong enough to float a corpse at sixty frames a second launches it
+   * at six. `buoyancy` takes the weight off where the weight is applied, which
+   * means the same thing at every frame rate. It stays where it is put, so
+   * whatever set it has to give it back — `release` does.
+   *
+   * @param {(x: number, y: number, z: number, out: Vector3) => void} field
+   *   writes the velocity of the water at a world-space point
+   * @param {number} grab 0..1, how much of the gap it closes this frame
+   * @param {number} [grabY] the same for the vertical
+   * @param {number} [buoyancy] 0..1, how much of the body's weight the water
+   *   is carrying
    */
-  push(x, y, z) {
-    for (const part of this.parts) part.ragdoll?.shove(x, y, z);
+  carry(field, grab, grabY, buoyancy = 0) {
+    for (const part of this.parts) {
+      if (!part.ragdoll) continue;
+      part.ragdoll.buoyancy = buoyancy;
+      part.ragdoll.steer(field, grab, grabY);
+    }
   }
 
   /**
@@ -800,11 +832,64 @@ export class Dummy {
    * would shove it back up through the water that just swallowed it.
    */
   release() {
+    // The weight comes back first, and unconditionally: a body left floating
+    // because whatever was holding it up stopped asking is a body that never
+    // lands, wherever it happens to be when the grip is dropped.
+    for (const part of this.parts) {
+      if (part.ragdoll) part.ragdoll.buoyancy = 0;
+    }
     const hips = this.bodyPoint(_scratch);
     if (hips && hips.y < 0) return;
     for (const part of this.parts) {
       if (part.ragdoll) part.ragdoll.floor = 0;
     }
+  }
+
+  /**
+   * Take the body away on somebody else's clock.
+   *
+   * `sink` is how a whirlpool disposes of a corpse: the floor opens and the
+   * stage's own opaque geometry does the hiding. Nothing hides a body being
+   * drawn into something three metres off the ground, so the Astral Void Blast
+   * needs the other end of the same idea — the burn that already exists for a
+   * corpse whose time is up, driven by *distance from the horizon* rather than
+   * by a timer.
+   *
+   * Two rules make it safe to call every frame from a pull that is fighting
+   * gravity for the body:
+   *
+   *  - **Monotonic.** It only ever raises the amount taken. A body that slips
+   *    back out of the throat for a frame must not visibly heal, and a caller
+   *    whose grip weakens must not be able to reassemble a corpse.
+   *  - **It does not stop the natural burn.** `dissolve` is the louder of the
+   *    two clocks, so a body eaten halfway and then let go finishes burning on
+   *    its own schedule instead of lying around half gone.
+   *
+   * A body still on its feet is not consumed: it has to be knocked down first,
+   * because a standing target has no solver and nothing to be dragged by.
+   *
+   * @param {number} amount 0..1, how much of the body has been taken
+   * @returns {number} how much is gone, after the monotonic clamp
+   */
+  consume(amount) {
+    if (this.state === 'alive' || this.state === 'gone') return this._consumed;
+
+    const want = amount < 0 ? 0 : amount > 1 ? 1 : amount;
+    if (want <= this._consumed) return this._consumed;
+    this._consumed = want;
+
+    if (this.state === 'dead') {
+      // Skip the wait: this corpse is not lying there cooling, it is being
+      // eaten. The depth pass has no idea the body is going away, so it would
+      // go on casting a whole shadow off half of one — which is exactly why the
+      // natural burn drops the shadow at this same transition.
+      this.state = 'burning';
+      this.timer = 0;
+      this._castShadows(false);
+    }
+
+    this.dissolve = Math.max(this.dissolve, this._consumed);
+    return this._consumed;
   }
 
   /**
@@ -954,8 +1039,12 @@ export class Dummy {
 
     // Past 1 rather than at it: the threshold is a strict `<`, so the last
     // few texels of the body need the burn to go over the top to clear.
-    this.dissolve = this.timer / Math.max(0.05, config.dissolveTime);
-    if (this.dissolve < 1.05) return;
+    // Whichever clock is further along wins — see `consume`, which is the other
+    // one and which can be well ahead of this by the time it starts.
+    this.dissolve = Math.max(this._consumed, this.timer / Math.max(0.05, config.dissolveTime));
+    // A body eaten outright is gone on that frame rather than lingering as a
+    // fully-discarded shell until the natural burn catches up with it.
+    if (this.dissolve < 1.05 && this._consumed < 1) return;
 
     this.state = 'gone';
     this.root.visible = false;

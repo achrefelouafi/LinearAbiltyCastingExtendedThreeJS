@@ -155,12 +155,23 @@ body {
  * Ability bar
  * ------------------------------------------------------------------ */
 
+/**
+ * One row per ability, and there are now enough of them that one row does not
+ * fit: fourteen 96px cards plus their gaps is a hair under 1500px, so on
+ * anything narrower than that the bar used to run off both edges of the window
+ * and take the last slot with it. Wrapping from the middle keeps every ability
+ * reachable at any width, and `row-reverse` puts the overflow row *above* the
+ * main one so the bar still grows away from the bottom edge.
+ */
 .hud__abilities {
   position: absolute;
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  max-width: calc(100vw - 40px);
   gap: 10px;
   pointer-events: auto;
 }

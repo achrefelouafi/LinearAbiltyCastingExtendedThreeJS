@@ -11,6 +11,7 @@ import { CyberSerpentAbility } from './CyberSerpentAbility.js';
 import { VenomSurgeAbility } from './VenomSurgeAbility.js';
 import { MonolithRiftAbility } from './MonolithRiftAbility.js';
 import { SumiTideAbility } from './SumiTideAbility.js';
+import { AstralVoidAbility } from './AstralVoidAbility.js';
 import { ELEMENTS } from '../config/settings.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 
@@ -28,7 +29,8 @@ const ABILITY_TYPES = {
   cyber: CyberSerpentAbility,
   venom: VenomSurgeAbility,
   quake: MonolithRiftAbility,
-  ink: SumiTideAbility
+  ink: SumiTideAbility,
+  astral: AstralVoidAbility
 };
 
 const MAX_CONCURRENT = 4;

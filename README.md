@@ -75,6 +75,22 @@ crater** and a network of **dark fissures** racing out past it. And the air itse
 radial pressure ring and a column of churn written into the refraction buffer. Built to the
 five-panel breakdown sheet, and filed in the editor the same way.
 
+**U — Astral Void Blast.** A far cast, built to a five-panel breakdown sheet, and the only one that
+takes what it catches *out of the world*. A pinprick of collapsed space is thrown to the circle
+already bending the frame around itself on the way; where it lands it inflates, holds for a breath,
+and then **collapses** — and the collapse is the blast. A **singularity** hangs there as a pitch-black
+disc with a photon ring welded to its edge, brighter on the limb turning toward you than on the one
+turning away. A real **gravitational lens** on the distortion layer wraps the whole finished frame
+around it — the stage, the character, and this ability's own other four layers. A raymarched
+**nebula** erupts around it, oblate and differentially sheared so its arms curl into genuine spirals,
+deep cosmic violet in the body and gold in the throat, with straight golden spears lancing out along
+the equator. Crystalline **void-shards** are thrown clear and immediately caught, tumbling on a
+closed-form infall whose winding diverges as they arrive, going incandescent as the tide strains them
+apart. And a planar **shockwave** rips outward across the floor, lifting a crest of displaced air and
+shoving the frame aside behind it. Then it does what it is for: everything inside the reach is
+knocked *inward*, lifted off the stone, wound in, stretched by a pull sampled per joint, and consumed
+at the horizon — and when the hole finally closes on itself it takes the light with it.
+
 Everything you can see is generated. There are no textures, no sprite sheets and no meshes on
 disk except the character: the crystals are procedural geometry, the bolt is a strip of ribbon
 placed entirely by a vertex shader, the meteor is an icosphere cratered and sliced by fracture
@@ -167,7 +183,8 @@ shown as a visible sky. The stage keeps its flat dark backdrop.
 | **K** (or **0**) | Arm the Cyber Serpent |
 | **J** | Arm the Crystallized Venom Surge |
 | **M** | Arm the Brutalist Earth Blast |
-| **M** | Arm the Monolith Rift |
+| **L** | Arm the Sumi Tide — a far cast that takes hold of what it catches |
+| **U** | Arm the Astral Void Blast — a far cast that eats what it catches |
 | **Move the mouse** | Swing the aim arrow, or move the far-cast circle |
 | **Left click** | Cast along the arrow, or drop the circle where it is |
 | **Esc** / **right click** | Cancel an armed cast |
@@ -659,8 +676,8 @@ target, blurred twice and projected onto the ground.
 
 Press **G** for the panel. Folders: Presets, Global, Aim indicator, Far-cast circle, Frost Lance,
 Storm Lance, Cinder Fall, Nova Beam, Voltaic Snare, Glacial Crown, Volcanic Ward, Caustic Bloom,
-Arborist's Growth, Cyber Serpent, Crystallized Venom Surge, Brutalist Earth Blast,
-Environment, Post processing, Camera,
+Arborist's Growth, Cyber Serpent, Crystallized Venom Surge, Brutalist Earth Blast, Sumi Tide,
+Astral Void Blast, Environment, Post processing, Camera,
 Character. Every folder starts collapsed — there are enough controls here that one open section
 pushes the rest off the screen.
 

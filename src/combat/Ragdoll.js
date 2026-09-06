@@ -190,6 +190,7 @@ const MAX_STEPS = 5;
 /* -------------------------------------------------------------------- */
 
 const _v = new Vector3();
+const _flow = new Vector3();
 const _up = new Vector3();
 const _right = new Vector3();
 const _fwd = new Vector3();
@@ -225,6 +226,18 @@ export class Ragdoll {
    */
   constructor(bones, { groundY = 0, include = null, collide = null } = {}) {
     this.floor = groundY;
+    /**
+     * How much of the body's weight the medium it is in carries, 0..1.
+     *
+     * Water, in practice — see `steer`. It is here rather than in the caller
+     * because gravity is applied per *substep* and anything a caller does
+     * arrives per *frame*: an upward velocity handed in once a frame is undone
+     * five times before the next one, so a current strong enough to hold a body
+     * up on a fast frame throws it into the air on a slow one. Taking the weight
+     * off at the point gravity is applied is the only formulation that means the
+     * same thing at every frame rate — and it is what floating actually is.
+     */
+    this.buoyancy = 0;
     this._include = include;
     this._collide = collide;
     this.asleep = false;
@@ -511,6 +524,64 @@ export class Ragdoll {
   }
 
   /**
+   * Drag every joint toward a velocity field sampled at its own position.
+   *
+   * `shove` moves a body on one vector, which is all a current needs to *carry*
+   * something. Turning water has to do the other half of it: the water half a
+   * metre nearer the axis of a whirlpool is measurably faster than the water at
+   * the far shoulder, and it is that difference — not the mean — that spins a
+   * body. Sampling the field per joint is the whole of it, and it is the
+   * difference between a corpse that slides into a vortex and one that goes
+   * round it.
+   *
+   * The field gives a velocity to be **matched**, not a force to be applied.
+   * This solver takes a bounded number of substeps per frame, so an
+   * acceleration pushed in every frame accumulates velocity the positions
+   * cannot follow, and on a slow frame the body leaves the map. `grab` is how
+   * much of the gap the water closes this frame — already multiplied by the
+   * caller's dt, because the caller is the one that knows the frame.
+   *
+   * A rigid rotation satisfies every distance constraint in here, which is what
+   * makes this work at all: hand the joints the velocities of a body turning
+   * about its own axis and the projection pass leaves them exactly as they are.
+   * Hand them a field that shears across the body faster than the bones can
+   * absorb and that same pass eats most of it — so a caller that wants violence
+   * at the axis should give its field a solid-body core rather than a
+   * singularity.
+   *
+   * @param {(x: number, y: number, z: number, out: Vector3) => void} field
+   *   writes the velocity of the medium at a world-space point
+   * A field cannot hold a body **up** on its own, and callers reach for that
+   * first every time. Gravity is integrated once per substep and this arrives
+   * once per frame, so a match strong enough to float a body at sixty frames
+   * throws it off the map at six; the arithmetic that balances the two is
+   * `gravity / grab` metres per second of permanent slip, which is metres per
+   * second of a corpse sinking through a floor it is supposed to be lying on.
+   * Set `buoyancy` for that instead and let this do what it is good at, which is
+   * everything sideways.
+   *
+   * @param {number} grab 0..1, how much of the gap is closed this frame
+   * @param {number} [grabY] the same for the vertical, which callers usually
+   *   want weaker — gravity is meant to keep some of its say
+   */
+  steer(field, grab, grabY = grab) {
+    if (!this.valid) return;
+    const kh = Math.min(1, Math.max(0, grab));
+    const kv = Math.min(1, Math.max(0, grabY));
+    if (kh <= 0 && kv <= 0) return;
+
+    for (let i = 0; i < this.px.length; i++) {
+      field(this.px[i], this.py[i], this.pz[i], _flow);
+      this.vx[i] += (_flow.x - this.vx[i]) * kh;
+      this.vy[i] += (_flow.y - this.vy[i]) * kv;
+      this.vz[i] += (_flow.z - this.vz[i]) * kh;
+    }
+
+    this.asleep = false;
+    this._still = 0;
+  }
+
+  /**
    * Write the current particle cloud back onto the skeleton.
    *
    * `update` already does this at the end of a step. This is for the one case
@@ -614,9 +685,12 @@ export class Ragdoll {
     const radius = config.radius;
     const iterations = Math.max(1, Math.round(config.iterations));
 
+    // What is left of the body's weight once the water has taken its share.
+    const weight = 1 - Math.min(1, Math.max(0, this.buoyancy));
+
     // Predict.
     for (let i = 0; i < count; i++) {
-      this.vy[i] += gravity * h;
+      this.vy[i] += gravity * weight * h;
       this.vx[i] *= drag;
       this.vy[i] *= drag;
       this.vz[i] *= drag;

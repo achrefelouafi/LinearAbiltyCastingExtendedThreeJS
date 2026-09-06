@@ -47,6 +47,7 @@ export class Editor {
     this._buildVenom();
     this._buildQuake();
     this._buildInk();
+    this._buildAstral();
     this._buildEnvironment();
     this._buildPost();
     this._buildCamera();
@@ -3426,9 +3427,17 @@ export class Editor {
     const gc = c.grip;
     R(grip, gc, 'flow', 0, 20, 0.1, 'inward current, m/s');
     R(grip, gc, 'swirl', 0, 20, 0.1, 'tangential current, m/s');
+    R(grip, gc, 'tumble', 0, 4, 0.01, 'body spin, rev/s');
     R(grip, gc, 'sink', 0, 20, 0.1, 'downward current, m/s');
     R(grip, gc, 'grab', 0.1, 12, 0.05, 'how fast it takes hold');
+    R(grip, gc, 'winch', 0, 12, 0.05, 'held to the spiral how hard');
+    R(grip, gc, 'windUp', 0.05, 3, 0.01, 'takes hold over');
+    R(grip, gc, 'wade', 0, 2, 0.01, 'floor drops by');
+    R(grip, gc, 'float', 0, 2, 0.01, 'carried at height');
+    R(grip, gc, 'buoy', 0, 12, 0.05, 'held there how hard');
+    R(grip, gc, 'rise', 0.1, 8, 0.05, 'fastest it is lifted');
     R(grip, gc, 'hold', 0, 3, 0.01, 'turns on the surface for');
+    R(grip, gc, 'spiral', 0.2, 8, 0.05, 'winds in over');
     R(grip, gc, 'depth', 0.5, 12, 0.1, 'how deep they go');
     R(grip, gc, 'impulse', 0, 20, 0.1, 'blow, inward');
     R(grip, gc, 'lift', 0, 12, 0.1, 'blow, upward');
@@ -3488,6 +3497,236 @@ export class Editor {
     light.addColor(c, 'lightColor').name('light colour');
 
     this.inkFolder = folder;
+  }
+
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * The Astral Void Blast.
+   *
+   * Grouped by the five panels of its reference sheet, in the order they
+   * happen. The two knobs worth reaching for first are `coreRadius` (in "The
+   * singularity") and `zoneRadius` (in "The cast"): almost every other length
+   * in this ability is expressed as a multiple of one of them, so those two
+   * re-scale the whole thing in proportion — mid-cast, and while paused.
+   */
+  _buildAstral() {
+    const folder = this.gui.addFolder('🕳  Astral Void Blast');
+    const c = settings.astral;
+    const R = Editor.range;
+
+    const cast = folder.addFolder('The cast');
+    R(cast, c, 'zoneRadius', 0.5, 14, 0.05, 'footprint radius');
+    R(cast, c, 'range', 2, 50, 0.1, 'max range');
+    R(cast, c, 'minRange', 0, 10, 0.1, 'min range');
+    R(cast, c, 'speed', 5, 300, 1, 'seed speed');
+    R(cast, c, 'lifetime', 0.2, 16, 0.05, 'hold time');
+    R(cast, c, 'fadeTime', 0.05, 6, 0.01, 'collapse time');
+    R(cast, c, 'cooldown', 0, 8, 0.05, 'cooldown');
+    R(cast, c, 'handHeight', 0, 2.5, 0.01, 'hand height');
+    R(cast, c, 'handForward', -1, 3, 0.01, 'hand forward');
+    R(cast, c, 'handSide', -2, 2, 0.01, 'hand side');
+    R(cast, c, 'trailStars', 0, 200, 1, 'trail stars / metre');
+    Editor.castAnimation(cast, c);
+
+    const core = folder.addFolder('1 · The singularity');
+    R(core, c, 'coreRadius', 0.05, 4, 0.01, 'shadow radius');
+    R(core, c, 'coreHeight', 0, 8, 0.05, 'height off the floor');
+    R(core, c, 'seedSize', 0.02, 1, 0.01, 'seed size, x radius');
+    R(core, c, 'coreSwell', 0.02, 2, 0.01, 'inflates over (s)');
+    R(core, c, 'coreBloom', 1, 5, 0.01, 'inflates to, x radius');
+    R(core, c, 'corePinch', 0.02, 1.5, 0.01, 'collapse takes (s)');
+    R(core, c, 'burstTime', 0.05, 3, 0.01, 'nebula opens over (s)');
+    R(core, c, 'haloReach', 1.5, 20, 0.1, 'halo reach, x horizon');
+    R(core, c, 'ringWidth', 0.005, 0.4, 0.002, 'photon ring width');
+    R(core, c, 'ringGlow', 0, 30, 0.1, 'photon ring glow');
+    R(core, c, 'ringBeam', 0, 1.5, 0.01, 'beamed side');
+    R(core, c, 'ringSpin', -3, 3, 0.01, 'beam travel, rev/s');
+    R(core, c, 'haloGlow', 0, 6, 0.01, 'halo glow');
+    R(core, c, 'haloFalloff', 0.2, 8, 0.05, 'halo falloff');
+    R(core, c, 'haloWind', 0, 10, 0.05, 'halo winding');
+    R(core, c, 'haloSpin', -3, 3, 0.01, 'halo spin, rev/s');
+    R(core, c, 'haloFilament', 0, 1, 0.01, 'torn into strands');
+    R(core, c, 'haloFilamentScale', 0.2, 10, 0.05, 'strand scale');
+    core.addColor(c, 'colorPhoton').name('photon ring');
+    core.addColor(c, 'colorHalo').name('halo, near');
+    core.addColor(c, 'colorHaloCool').name('halo, far');
+
+    const lens = folder.addFolder('2 · The lens');
+    R(lens, c, 'lensReach', 2, 40, 0.1, 'reach, x horizon');
+    R(lens, c, 'lensBend', 0, 2, 0.01, 'deflection, x radius');
+    R(lens, c, 'lensDrag', 0, 1.5, 0.01, 'frame dragging');
+
+    const nebula = folder.addFolder('3 · The nebula');
+    R(nebula, c, 'nebulaRadius', 0.5, 24, 0.1, 'reach, metres');
+    R(nebula, c, 'nebulaCavity', 0.5, 5, 0.01, 'eye, x horizon');
+    R(nebula, c, 'nebulaSteps', 6, 72, 1, 'march steps');
+    R(nebula, c, 'nebulaDensity', 0, 12, 0.05, 'density');
+    R(nebula, c, 'nebulaAbsorb', 0, 6, 0.01, 'opacity along the ray');
+    R(nebula, c, 'nebulaGlow', 0, 8, 0.01, 'emission');
+    R(nebula, c, 'nebulaScale', 0.05, 2, 0.01, 'features / metre');
+    R(nebula, c, 'nebulaDetail', 0.5, 8, 0.05, 'filament scale');
+    R(nebula, c, 'nebulaFilament', 0, 1, 0.01, 'strands vs clouds');
+    R(nebula, c, 'nebulaThreshold', 0.05, 0.95, 0.01, 'carve threshold');
+    R(nebula, c, 'nebulaEdge', 0.05, 1, 0.01, 'outer softness');
+    R(nebula, c, 'nebulaFlatten', 0.1, 1.5, 0.01, 'disc vs ball');
+    R(nebula, c, 'nebulaArms', 1, 9, 1, 'spiral arms');
+    R(nebula, c, 'nebulaArmSharp', 0.2, 6, 0.05, 'arm sharpness');
+    R(nebula, c, 'nebulaArmWeight', 0, 1, 0.01, 'arm weight');
+    R(nebula, c, 'nebulaWind', 0, 10, 0.05, 'differential winding');
+    R(nebula, c, 'nebulaTwist', -6, 6, 0.05, 'twist with height');
+    R(nebula, c, 'nebulaSpin', -3, 3, 0.01, 'field spin, rev/s');
+    R(nebula, c, 'nebulaRise', -3, 3, 0.01, 'field climb');
+    R(nebula, c, 'nebulaSpikes', 0, 24, 1, 'golden spears');
+    R(nebula, c, 'nebulaSpikeSharp', 1, 24, 0.5, 'spear sharpness');
+    R(nebula, c, 'nebulaSpikeReach', 0.1, 2, 0.01, 'spear reach');
+    R(nebula, c, 'nebulaSpikeGlow', 0, 3, 0.01, 'spear glow');
+    R(nebula, c, 'nebulaHeatFalloff', 0.2, 8, 0.05, 'gold to violet');
+    R(nebula, c, 'nebulaBeam', 0, 2, 0.01, 'doppler beaming');
+    R(nebula, c, 'nebulaOpacity', 0, 2, 0.01, 'opacity');
+    nebula.addColor(c, 'colorNebulaEdge').name('thin gas');
+    nebula.addColor(c, 'colorNebulaBody').name('body');
+    nebula.addColor(c, 'colorNebulaHot').name('hot');
+    nebula.addColor(c, 'colorNebulaCore').name('the throat');
+
+    const shards = folder.addFolder('4 · The void-shards');
+    R(shards, c, 'shardSize', 0.05, 2, 0.01, 'size, metres');
+    R(shards, c, 'shardSpread', 0.2, 4, 0.01, 'thrown to, x footprint');
+    R(shards, c, 'shardStagger', 0, 8, 0.05, 'arrivals spread over (s)');
+    R(shards, c, 'shardLife', 0.2, 8, 0.05, 'one fall takes (s)');
+    R(shards, c, 'shardOrbit', 0, 4, 0.01, 'infall winding');
+    R(shards, c, 'shardLoft', 0, 2, 0.01, 'out of the plane');
+    R(shards, c, 'shardTumble', 0, 8, 0.05, 'tumble, rev/s');
+    R(shards, c, 'shardCrush', 0.2, 0.99, 0.01, 'crushed after');
+    R(shards, c, 'shardFresnel', 0, 6, 0.01, 'rim');
+    R(shards, c, 'shardFresnelPower', 0.5, 8, 0.05, 'rim tightness');
+    R(shards, c, 'shardVein', 0, 6, 0.01, 'veins');
+    R(shards, c, 'shardVeinScale', 0.5, 20, 0.1, 'vein scale');
+    R(shards, c, 'shardVeinSharp', 0.5, 8, 0.05, 'vein sharpness');
+    R(shards, c, 'shardGlint', 0, 4, 0.01, 'facet glint');
+    R(shards, c, 'shardGlintScale', 2, 80, 0.5, 'glint scale');
+    R(shards, c, 'shardHeatGlow', 0, 16, 0.1, 'white-out');
+    R(shards, c, 'shardCoreBleed', 0, 6, 0.01, 'lit by the hole');
+    R(shards, c, 'shardCoreRadius', 0.5, 20, 0.1, '... how far, metres');
+    R(shards, c, 'shardRoughness', 0, 1, 0.01, 'roughness');
+    R(shards, c, 'shardMetalness', 0, 1, 0.01, 'metalness');
+    R(shards, c, 'shardEnvIntensity', 0, 3, 0.01, 'reflections');
+    shards.addColor(c, 'colorShardBody').name('body');
+    shards.addColor(c, 'colorShardFacet').name('lit facet');
+    shards.addColor(c, 'colorShardRim').name('rim');
+    shards.addColor(c, 'colorShardVein').name('veins');
+    shards.addColor(c, 'colorShardHot').name('white-out');
+
+    const shock = folder.addFolder('5 · The shockwave');
+    R(shock, c, 'shockRadius', 1, 40, 0.1, 'reach, metres');
+    R(shock, c, 'shockSpeed', 1, 60, 0.5, 'speed, m/s');
+    R(shock, c, 'shockHeight', 0, 0.3, 0.002, 'hover, metres');
+    R(shock, c, 'shockWidth', 0.05, 5, 0.01, 'packet depth, metres');
+    R(shock, c, 'shockLift', 0, 3, 0.01, 'crest lift, metres');
+    R(shock, c, 'shockWobble', 0, 3, 0.01, 'front wander, metres');
+    R(shock, c, 'shockWobbleScale', 0.2, 10, 0.05, 'wander scale');
+    R(shock, c, 'shockSpokes', 0, 80, 1, 'filaments');
+    R(shock, c, 'shockSpokeSharp', 0.2, 8, 0.05, 'filament sharpness');
+    R(shock, c, 'shockSpokeDrift', -4, 4, 0.01, 'filament drift');
+    R(shock, c, 'shockEdge', 0, 4, 0.01, 'leading line');
+    R(shock, c, 'shockTrail', 0, 2, 0.01, 'wash behind');
+    R(shock, c, 'shockGrain', 0, 2, 0.01, 'grain');
+    R(shock, c, 'shockGrainScale', 0.1, 8, 0.05, 'grain scale');
+    R(shock, c, 'shockGlow', 0, 8, 0.01, 'glow');
+    R(shock, c, 'shockOpacity', 0, 2, 0.01, 'opacity');
+    shock.addColor(c, 'colorShockHot').name('crest');
+    shock.addColor(c, 'colorShockBody').name('body');
+    shock.addColor(c, 'colorShockCool').name('wash');
+    R(shock, c, 'warpStrength', 0, 6, 0.01, 'air displacement');
+    R(shock, c, 'warpWidth', 0.05, 5, 0.01, 'pressure depth');
+    R(shock, c, 'warpRipples', 0.5, 20, 0.1, 'pressure bands');
+    R(shock, c, 'warpChop', 0, 2, 0.01, 'pressure break-up');
+    R(shock, c, 'warpChopScale', 0.2, 10, 0.05, 'break-up scale');
+
+    const churn = folder.addFolder('The flare');
+    R(churn, c, 'churnRate', 0.05, 8, 0.05, 'envelope speed');
+    R(churn, c, 'churnSharp', 0.2, 8, 0.05, 'flare sharpness');
+    R(churn, c, 'churnDepth', 0, 2, 0.01, 'modulation depth');
+    R(churn, c, 'flareThreshold', 0.05, 0.98, 0.01, 'flare threshold');
+    R(churn, c, 'flareEmbers', 0, 300, 1, 'gold / flare');
+    R(churn, c, 'flareStars', 0, 300, 1, 'stars / flare');
+    R(churn, c, 'flareShake', 0, 0.5, 0.002, 'camera knock');
+
+    const grip = folder.addFolder('The swallow');
+    const gc = c.grip;
+    R(grip, gc, 'reach', 0.5, 5, 0.01, 'fishes within, x footprint');
+    R(grip, gc, 'well', 0.1, 3, 0.01, 'half-strength at, x footprint');
+    R(grip, gc, 'pull', 0, 30, 0.1, 'inward pull, m/s');
+    R(grip, gc, 'swirl', 0, 30, 0.1, 'tangential, m/s');
+    R(grip, gc, 'tumble', 0, 4, 0.01, 'body spin, rev/s');
+    R(grip, gc, 'cartwheel', 0, 2, 0.01, 'end-over-end');
+    R(grip, gc, 'windUp', 0.05, 3, 0.01, 'takes hold over');
+    R(grip, gc, 'buoy', 0, 2, 0.01, 'weight carried');
+    R(grip, gc, 'grab', 0.1, 12, 0.05, 'how fast it takes hold');
+    R(grip, gc, 'spiral', 0, 8, 0.05, 'given to wind in for');
+    R(grip, gc, 'swallow', 0.5, 8, 0.05, 'the mouth, x horizon');
+    R(grip, gc, 'devour', 0.1, 8, 0.05, 'consumed at, bodies/s');
+    R(grip, gc, 'impulse', 0, 20, 0.1, 'blow, inward');
+    R(grip, gc, 'lift', 0, 12, 0.1, 'blow, upward');
+    R(grip, gc, 'spin', 0, 4, 0.01, 'blow, torque');
+    R(grip, gc, 'swallowEmbers', 0, 300, 1, 'gold / body');
+    R(grip, gc, 'swallowStars', 0, 300, 1, 'stars / body');
+    R(grip, gc, 'swallowShake', 0, 0.5, 0.002, 'swallow knock');
+
+    const particles = folder.addFolder('Particles');
+    R(particles, c, 'starRate', 0, 900, 5, 'stars / second');
+    R(particles, c, 'starSize', 0.01, 0.5, 0.005, 'star size');
+    R(particles, c, 'starLifetime', 0.1, 6, 0.05, 'star life');
+    R(particles, c, 'starShell', 0.2, 3, 0.01, 'born at, x footprint');
+    R(particles, c, 'starLoft', 0, 2, 0.01, 'out of the plane');
+    R(particles, c, 'starSwirl', -12, 12, 0.05, 'orbit, rad/s');
+    R(particles, c, 'starInfall', 0, 1, 0.01, 'how far the orbit collapses');
+    R(particles, c, 'emberRate', 0, 400, 1, 'gold / second');
+    R(particles, c, 'emberSpeed', 0, 20, 0.05, 'gold speed');
+    R(particles, c, 'emberLifetime', 0.05, 6, 0.05, 'gold life');
+    R(particles, c, 'emberSize', 0.01, 0.6, 0.005, 'gold size');
+    R(particles, c, 'chipRate', 0, 200, 1, 'stone / second');
+    R(particles, c, 'chipSpeed', 0, 20, 0.05, 'stone speed');
+    R(particles, c, 'chipLifetime', 0.05, 6, 0.05, 'stone life');
+    R(particles, c, 'chipSize', 0.01, 0.6, 0.005, 'stone size');
+    R(particles, c, 'dustRate', 0, 200, 1, 'dust / second');
+    R(particles, c, 'dustSpeed', 0, 12, 0.05, 'dust speed');
+    R(particles, c, 'dustLifetime', 0.05, 8, 0.05, 'dust life');
+    R(particles, c, 'dustSize', 0.05, 5, 0.01, 'dust size');
+    Editor.gradient(particles, c, 'colorStar', 'Star gradient');
+    Editor.gradient(particles, c, 'colorEmber', 'Gold gradient');
+    Editor.gradient(particles, c, 'colorChip', 'Stone gradient');
+    Editor.gradient(particles, c, 'colorDust', 'Dust gradient');
+
+    const blast = folder.addFolder('The collapse');
+    R(blast, c, 'implodeStars', 0, 800, 5, 'inrush stars');
+    R(blast, c, 'implodeShake', 0, 1, 0.005, 'arrival knock');
+    R(blast, c, 'blastEmbers', 0, 800, 5, 'blast gold');
+    R(blast, c, 'blastChips', 0, 600, 5, 'blast stone');
+    R(blast, c, 'blastDust', 0, 400, 5, 'blast dust');
+    R(blast, c, 'blastStars', 0, 1500, 10, 'blast stars');
+    R(blast, c, 'blastShake', 0, 3, 0.005, 'blast shake');
+    R(blast, c, 'shakeDuration', 0.05, 3, 0.01, 'shake decay');
+    R(blast, c, 'blastFlash', 0, 1, 0.005, 'blast flash');
+    R(blast, c, 'scorchRadius', 0.5, 16, 0.1, 'scorch radius');
+    R(blast, c, 'scorchLife', 0.5, 20, 0.1, 'scorch life');
+    R(blast, c, 'scorchIntensity', 0, 3, 0.01, 'scorch strength');
+    R(blast, c, 'rumble', 0, 0.3, 0.002, 'travel rumble');
+    R(blast, c, 'holdShake', 0, 0.3, 0.002, 'hold rumble');
+    R(blast, c, 'collapseFlash', 0, 2, 0.01, 'closing flash');
+    R(blast, c, 'collapseShake', 0, 2, 0.005, 'closing shake');
+    blast.addColor(c, 'colorScorch').name('scorch');
+    blast.addColor(c, 'colorScorchEmber').name('scorch ember');
+    blast.addColor(c, 'colorFlash').name('blast flash');
+    blast.addColor(c, 'colorCollapseFlash').name('closing flash');
+
+    const light = folder.addFolder('Dynamic light');
+    R(light, c, 'lightIntensity', 0, 160, 0.5, 'light intensity');
+    R(light, c, 'lightRadius', 0.5, 60, 0.1, 'light radius');
+    R(light, c, 'lightPulse', 0, 2, 0.01, 'flare owns');
+    light.addColor(c, 'lightColor').name('light colour');
+
+    this.astralFolder = folder;
   }
 
   /* ------------------------------------------------------------------ */

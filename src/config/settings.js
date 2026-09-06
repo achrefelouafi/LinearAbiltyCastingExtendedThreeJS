@@ -4276,12 +4276,55 @@ export const settings = {
       // steered toward this velocity rather than pushed with an acceleration,
       // which is the only formulation that stays stable when the frame is long
       // and the solver's substeps are not. See `SumiTideAbility#_drag`.
-      flow: 4.6, // metres/second inward, at the boundary
-      swirl: 5.6, // metres/second tangential — what makes it a spiral
-      sink: 1.7, // metres/second down, once the throat has it
+      //
+      // `swirl` against `flow` is the whole shape of the swallow, and `swirl`
+      // has to be much the larger of the two. The inward pull only has to get a
+      // body to the middle; the tangential current is what makes the trip worth
+      // watching, and the trip has to happen out on the open water — the middle
+      // of this thing is a jet, a volume of ink and a throat, so a body that
+      // crosses the circle in a second arrives at the one place nobody can see
+      // it and disappears. Wind `flow` up past `swirl` and what is left is a
+      // plughole.
+      flow: 1.7, // metres/second inward, at the boundary — a real drift speed
+      swirl: 6.4, // metres/second tangential, at the edge of the throat — the peak
+      tumble: 0.7, // revolutions/second a body turns about its *own* axis
+      windUp: 0.55, // seconds the current takes to get its hands on a body
+      // How hard the water holds a body to its wind-in schedule, per second —
+      // the one number that decides whether the spiral *arrives*. A current
+      // alone does not: steering toward a velocity slips against the `v² / r`
+      // an orbit costs, and a body left to `flow` and `swirl` parks on the ring
+      // where the two cancel and turns there until the tide drains. This closes
+      // that loop, so `spiral` below means what it says. Under about 2 the
+      // outward drift starts winning again near the axis; much over 6 and the
+      // body is dragged in on a straight line rather than wound.
+      winch: 4.0,
+      // The water has to lift a body off the stone before it can turn it: the
+      // solver scrubs the slide off any joint touching the floor, so a corpse
+      // lying on it cannot be spun at all. `wade` is how far the floor drops to
+      // let that happen and `float` is where the buoyancy then holds the body,
+      // which is the surface — this is a body floating in a whirlpool, not one
+      // hovering over one.
+      wade: 0.45, // metres the floor drops as the water takes hold
+      // High enough that the body breaks the surface it is turning on. The
+      // circle is a bowl with a metre of standing water around its rim and a
+      // jet up its middle: a corpse held *at* the surface is a corpse behind
+      // all of that, and the turn nobody can see may as well not happen.
+      float: 0.8, // metres above the floor the water carries the body at
+      buoy: 3.4, // how hard it is held there, per second
+      rise: 1.6, // ... and the fastest it may be moved to get there, m/s
+      // Seconds the water takes to walk a body from wherever it caught it to
+      // the axis, and now the actual schedule rather than a patience clock —
+      // `winch` above is what holds the body to it. Long enough that the trip
+      // is the ability and short enough that it finishes inside `lifetime`
+      // with room for the descent: windUp + spiral + depth/sink has to fit.
+      spiral: 2.2,
+      sink: 2.4, // metres/second down, once the throat has it
       grab: 3.4, // how fast a body matches the water, per second
-      hold: 0.9, // seconds a body turns on the surface before it goes under
-      depth: 3.4, // metres it is allowed to fall below the floor
+      // Every body gets its moment on the surface, wherever it was caught. One
+      // standing on the point the tide lands has no spiral to make, and without
+      // this it would be swallowed on arrival — the turn is the ability.
+      hold: 1.1, // seconds a body turns on the surface before it may go under
+      depth: 3.2, // metres it is allowed to fall below the floor
       lift: 3.2, // metres/second the blow throws it up as it is taken
       impulse: 1.6, // ... and inward
       spin: 0.8, // extra impulse per body-height above the hips — the torque
@@ -4322,6 +4365,337 @@ export const settings = {
     lightHeight: 0.35, // × the crown's height
     lightSwell: 0.55, // how much of the light the swell owns
     lightColor: '#7fd6cf'
+  },
+
+  /* ------------------------------------------------------------------ */
+  /* Astral Void Blast — the black hole                                  */
+  /* ------------------------------------------------------------------ */
+  /**
+   * A singularity thrown to the aimed circle, which inflates, collapses, and
+   * takes the room with it. Five passes, one per panel of the reference sheet,
+   * and every one of them is measured against the two numbers at the top:
+   * `coreRadius` (the shadow) and `zoneRadius` (the footprint). Almost nothing
+   * below is an absolute metre — the ring is in horizon radii, the gas cavity
+   * is in horizon radii, the shard field is in footprints — so dragging either
+   * of those re-scales the whole ability, mid-cast, in proportion.
+   *
+   * @see abilities/AstralVoidAbility.js
+   */
+  astral: {
+    /* --- the cast --- */
+    range: 24.0, // maximum cast distance, metres
+    minRange: 0.0, // it is a zone: dropping it on your own feet is allowed
+    zoneRadius: 5.5, // the footprint — what the circle indicator measures out
+    speed: 68.0, // how fast the seed travels to the point, metres/second
+    lifetime: 4.6, // seconds the hole stands and feeds
+    fadeTime: 2.0, // seconds it takes to close on itself
+    cooldown: 4.0,
+    castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
+
+    /* --- where the seed leaves the caster --- */
+    handHeight: 1.15, // metres above the floor
+    handForward: 0.68, // metres in front of the caster
+    handSide: -0.12, // metres to the side (+ follows `Ability#side`)
+    trailStars: 40, // stars per metre of the throw
+
+    /* --- layer 1: the singularity core --- */
+    /**
+     * The shadow, and the two beats that open the ability: it arrives
+     * over-inflated (`coreBloom`) and then **snaps shut** (`corePinch`), and it
+     * is the snap that fires the blast rather than the landing. A hole that is
+     * simply *there* on the frame it arrives has nothing to collapse.
+     */
+    coreRadius: 1.05, // the settled shadow, metres
+    coreHeight: 3.4, // how far off the floor it hangs — a body has to be *lifted* in
+    seedSize: 0.16, // × coreRadius, while it is still travelling
+    coreSwell: 0.34, // seconds it takes to inflate
+    coreBloom: 2.1, // × coreRadius at the top of that inflation
+    corePinch: 0.16, // seconds the collapse takes
+    burstTime: 0.5, // seconds the nebula takes to reach full size
+
+    /* --- the photon ring and the lensed halo --- */
+    /**
+     * The ring is only a few pixels wide and it is the brightest thing in the
+     * ability: it is where light that orbited the hole piles up, and it is most
+     * of the reason the shot reads as photographed. `ringBeam` is the
+     * asymmetry — the limb sweeping toward the camera is brighter than the one
+     * sweeping away, which is what says the thing is turning at speed.
+     */
+    haloReach: 7.5, // how far the halo is drawn, × the horizon
+    ringWidth: 0.042, // thickness of the photon ring, in horizon radii
+    ringGlow: 9,
+    ringBeam: 0.75, // how hard one side is beamed, 0 = evenly lit
+    ringSpin: 0.22, // revolutions/second the beamed side travels
+    haloGlow: 1.15,
+    haloFalloff: 2.4, // how fast the halo dies outward
+    haloWind: 2.4, // differential winding — inner strands lap outer ones
+    haloSpin: 0.3, // revolutions/second the whole halo turns
+    haloFilament: 0.7, // how far it is torn into strands
+    haloFilamentScale: 2.2,
+    colorPhoton: '#ffe9b8', // the ring
+    colorHalo: '#c98cff', // lensed light near it
+    colorHaloCool: '#3a1c72', // ... and out at the reach
+
+    /* --- layer 2: the lens --- */
+    /**
+     * A real screen-space warp on LAYER.DISTORTION, so what it bends is the
+     * whole finished frame — the stage, the character, and this ability's own
+     * other four layers.
+     *
+     * `lensBend` is a fraction of the hole's **apparent** radius, measured per
+     * frame — not a slice of the screen. Authored in screen widths it would be
+     * two different effects at two camera distances: invisible from across the
+     * arena, and strong enough up close that the radial remap folds the image
+     * back over itself and prints concentric mirrored rings around the hole.
+     */
+    lensReach: 16.0, // how far the warp is drawn, × the horizon
+    lensBend: 0.45, // deflection at the photon ring, × the hole's own radius
+    lensDrag: 0.3, // how much of it is tangential — frame dragging
+
+    /* --- layer 3: the astral nebula --- */
+    /**
+     * The payload. A raymarched, oblate, differentially sheared cloud: deep
+     * cosmic purple in the body, gold in the throat, wound into arms that
+     * spiral in. `nebulaSteps` is the whole performance dial and is a live
+     * slider for exactly that reason.
+     *
+     * The three that carry the look, in order: `nebulaWind` (the shear that
+     * makes the arms spiral at all), `nebulaFlatten` (a disc rather than a
+     * ball — everything that falls into something ends up in a plane), and
+     * `nebulaSpikes` (the golden spears, which are angular rather than noise,
+     * so they read as rays instead of blobs).
+     */
+    nebulaRadius: 8.5, // how far the gas reaches, metres
+    nebulaCavity: 2.5, // the clear eye around the shadow, × the horizon
+    nebulaSteps: 34, // samples per pixel through the cloud
+    nebulaDensity: 2.4,
+    nebulaAbsorb: 0.5, // how fast it goes opaque along the ray
+    nebulaGlow: 1.15,
+    nebulaScale: 0.34, // features per metre
+    nebulaDetail: 2.3, // frequency of the filament layer
+    nebulaFilament: 0.62, // how much of it is strands rather than clouds
+    nebulaThreshold: 0.5, // below this there is simply no gas
+    nebulaEdge: 0.7, // where the outer wall starts to soften, × the reach
+    nebulaFlatten: 0.6, // <1 squashes the cloud into a disc
+    nebulaArms: 3, // spiral arms
+    nebulaArmSharp: 1.5, // how tightly they are cut
+    nebulaArmWeight: 0.68, // how much of the density they own
+    nebulaWind: 2.4, // differential winding — the spiral itself
+    nebulaTwist: 1.6, // extra turn with height
+    nebulaSpin: 0.2, // revolutions/second the whole field turns
+    nebulaRise: 0.35, // how fast the field climbs
+    nebulaSpikes: 9, // the golden spears
+    nebulaSpikeSharp: 9, // how narrow they are
+    nebulaSpikeReach: 0.95, // how far out they carry, × the reach
+    nebulaSpikeGlow: 0.7,
+    nebulaHeatFalloff: 2.1, // how fast gold cools to violet outward
+    nebulaBeam: 0.3, // doppler beaming
+    nebulaOpacity: 1.0,
+    colorNebulaEdge: '#2e1558', // thin gas, out at the reach
+    colorNebulaBody: '#8b46f0',
+    colorNebulaHot: '#ffb03a',
+    colorNebulaCore: '#fff3d0', // the throat
+
+    /* --- layer 4: the void-shards --- */
+    /**
+     * Crystalline debris thrown clear and immediately caught. The orbit is
+     * closed-form so the editor can re-throw a field that is already falling:
+     * the radius decays as a two-thirds power, which makes the winding
+     * integrate to a logarithm, so a shard turns faster and faster the further
+     * in it gets and its last half-metre is a blur.
+     */
+    shardSize: 0.5, // metres, at full size
+    shardSpread: 1.35, // how far they are thrown, × the footprint
+    shardStagger: 2.2, // seconds the arrivals are spread over
+    shardLife: 2.6, // seconds one shard takes to fall in
+    shardOrbit: 0.55, // how hard the infall winds
+    shardLoft: 0.55, // how far out of the disc plane they are thrown
+    shardTumble: 1.6, // revolutions/second they turn on their own axes
+    shardCrush: 0.86, // fraction of the fall before the hole crushes them
+    shardFresnel: 1.1, // the violet rim that draws the silhouette
+    shardFresnelPower: 2.3,
+    shardVein: 1.6, // gold in the flaws, lit by how deep in the well it is
+    shardVeinScale: 6.0,
+    shardVeinSharp: 3.0,
+    shardGlint: 1.0, // pinpoint sparkle on the facets
+    shardGlintScale: 24,
+    shardHeatGlow: 5.0, // the white-out just before it goes over
+    shardCoreBleed: 1.5, // how much light the hole throws on them
+    shardCoreRadius: 6.5, // ... and how far that carries, metres
+    shardRoughness: 0.32,
+    shardMetalness: 0.25,
+    shardEnvIntensity: 0.7,
+    colorShardBody: '#0a0714',
+    colorShardFacet: '#221838',
+    colorShardRim: '#b98cff',
+    colorShardVein: '#ffb54a',
+    colorShardHot: '#fff0cf',
+
+    /* --- layer 5: the cosmic shockwave --- */
+    /**
+     * An expanding planar ring on the floor, with a lifted crest of displaced
+     * air and a refraction proxy shoving the frame outward behind it. The front
+     * is integrated at `shockSpeed`, so dragging the speed re-paces a wave that
+     * is already travelling.
+     */
+    shockRadius: 17, // how far it runs, metres
+    shockSpeed: 11, // metres/second
+    shockHeight: 0.03, // hover distance above the floor, metres
+    shockWidth: 0.95, // depth of the wave packet, metres
+    shockLift: 0.5, // how far the crest stands off the floor, metres
+    shockWobble: 0.55, // how far the front wanders off a circle, metres
+    shockWobbleScale: 2.4,
+    shockSpokes: 28, // filaments streaming through the band
+    shockSpokeSharp: 1.7,
+    shockSpokeDrift: 0.7, // how fast they slide round it
+    shockEdge: 1, // brightness of the hot leading line
+    shockTrail: 0.14, // the wash left behind the wave
+    shockGrain: 0.6,
+    shockGrainScale: 1.5,
+    shockGlow: 1.35,
+    shockOpacity: 1.0,
+    colorShockHot: '#ffeccb',
+    colorShockBody: '#a76bff',
+    colorShockCool: '#2a1250',
+
+    /* --- the air the wave shoves aside --- */
+    warpStrength: 1.5,
+    warpWidth: 1.2, // depth of the pressure packet, metres
+    warpRipples: 6.0, // bands inside it
+    warpChop: 0.45, // how far the front is broken up
+    warpChopScale: 2.6,
+
+    /* --- the flare envelope every pass is driven off --- */
+    /**
+     * Water heaves; an accretion disc *flares*. Matter piles up at the
+     * innermost orbit, goes in, and the hole brightens for a moment — so unlike
+     * the Sumi Tide's swell this envelope is deliberately spiky. Crossing
+     * `flareThreshold` on the way up throws a jet of gold along the equator and
+     * knocks the camera, so nothing in this ability free-runs on its own sine.
+     */
+    churnRate: 1.6, // how fast the envelope runs
+    churnSharp: 1.9, // >1 leans it toward the troughs
+    churnDepth: 0.8, // how hard it modulates everything, 0 = flat
+    flareThreshold: 0.66, // the level a flare has to cross to feed
+    flareEmbers: 40, // gold thrown when it does
+    flareStars: 60,
+    flareShake: 0.03, // the knock on the camera
+
+    /* --- particles --- */
+    starRate: 620, // micro-stars per second, all of them in orbit
+    starSize: 0.055,
+    starLifetime: 1.5, // and how long one takes to spiral in
+    starShell: 1.15, // the radius they are born on, × the footprint
+    starLoft: 0.45, // how far out of the plane, × that shell
+    starSwirl: 5, // radians/second the orbit turns
+    starInfall: 0.97, // how much of the orbit collapses over a star's life
+    colorStarA: '#ffffff',
+    colorStarB: '#ffd9a0',
+    colorStarC: '#b070ff',
+    colorStarD: '#2a1050',
+
+    emberRate: 70, // gold torn off the disc, per second
+    emberSpeed: 5.5,
+    emberLifetime: 0.9,
+    emberSize: 0.1,
+    colorEmberA: '#fff6dd',
+    colorEmberB: '#ffc257',
+    colorEmberC: '#ff7a2a',
+    colorEmberD: '#5c1f5e',
+
+    chipRate: 26, // stone lifted at the wavefront, per second
+    chipSpeed: 7.5,
+    chipLifetime: 1.6,
+    chipSize: 0.12,
+    colorChipA: '#6b5a8f',
+    colorChipB: '#2c2140',
+    colorChipC: '#151021',
+    colorChipD: '#0a0712',
+
+    dustRate: 55, // and the cloud it lifts with them
+    dustSpeed: 2.6,
+    dustLifetime: 2.6,
+    dustSize: 0.8,
+    colorDustA: '#8e86a0',
+    colorDustB: '#5d5670',
+    colorDustC: '#332e42',
+    colorDustD: '#161320',
+
+    /* --- the pull: what the hole does to a body --- */
+    /**
+     * The second ability on this stage that does not simply *hit* what is
+     * standing in it. Everything caught — on its feet or already down — is
+     * knocked inward, lifted off the stone, wound in, and consumed.
+     *
+     * `swirl` against `pull` is the whole shape of it, and `swirl` has to be
+     * the larger of the two: the inward pull is what gets a body to the middle,
+     * the tangential current is what makes the trip worth watching. Wind `pull`
+     * past it and everything takes a straight line in, which is a magnet.
+     *
+     * `well` is the radius at which the pull is half its peak, as a fraction of
+     * the footprint. Referencing the falloff to the *zone* rather than to the
+     * horizon is what stops the hole being something that only eats what is
+     * already inside it.
+     *
+     * @see AstralVoidAbility#_drag
+     */
+    grip: {
+      reach: 2.1, // how far it fishes, × the footprint
+      well: 0.6, // where the pull is half strength, × the footprint
+      pull: 7.5, // metres/second inward, at the middle
+      swirl: 9.0, // metres/second tangential, at the horizon — the peak
+      tumble: 0.55, // revolutions/second a body turns about its own vertical
+      cartwheel: 0.45, // ... and how much of that is end-over-end instead
+      windUp: 0.45, // seconds the pull takes to get its hands on a body
+      buoy: 1.15, // how much of the body's weight the well carries, 0..1
+      grab: 4.2, // how fast a body matches the field, per second
+      spiral: 2.8, // seconds it is given to wind in before it is taken anyway
+      swallow: 2.4, // the mouth, × the horizon — inside this it is consumed
+      devour: 1.4, // how fast that goes, fractions of a body per second
+      impulse: 3.0, // the blow that takes it off its feet, inward
+      lift: 2.6, // ... and upward
+      spin: 1.0, // extra impulse per body-height above the hips — the torque
+      swallowEmbers: 70, // thrown when a body crosses the horizon
+      swallowStars: 90,
+      swallowShake: 0.06
+    },
+
+    /* --- the collapse, and the blast it causes --- */
+    implodeStars: 220, // matter rushing in as the seed lands
+    implodeShake: 0.16,
+    blastEmbers: 220, // gold thrown out of the middle
+    blastChips: 130,
+    blastDust: 70,
+    blastStars: 900,
+    blastShake: 0.75,
+    shakeDuration: 0.55, // seconds that shake decays over
+    blastFlash: 0.28,
+    scorchRadius: 5.2, // the mark left under the hole
+    scorchLife: 8.0,
+    scorchIntensity: 0.4,
+    rumble: 0.05, // continuous shake while the seed travels
+    holdShake: 0.06, // ... and while the hole feeds
+    collapseFlash: 0.45, // the pop as it closes on itself
+    collapseShake: 0.35,
+    // Muted on purpose: the scorch decal runs its second colour hot for the
+    // first part of its life, and a saturated stop there throws a bright star
+    // across a floor that is meant to read as burnt rather than lit.
+    colorScorch: '#100b18',
+    colorScorchEmber: '#2a1a44',
+    colorFlash: '#c9a2ff',
+    colorCollapseFlash: '#ffffff',
+
+    /* --- dynamic light --- */
+    /**
+     * Violet, high and hard. The hole is the darkest thing in the set and the
+     * brightest at the same time: the light is here to model the gas and the
+     * shards, not to make the shadow glow — push it and the black disc picks up
+     * a purple wash and stops being a hole.
+     */
+    lightIntensity: 26,
+    lightRadius: 22,
+    lightPulse: 0.5, // how much of the light the flare envelope owns
+    lightColor: '#b98cff'
   },
 
   /* ------------------------------------------------------------------ */
@@ -4454,7 +4828,8 @@ export const ELEMENTS = [
   'cyber',
   'venom',
   'quake',
-  'ink'
+  'ink',
+  'astral'
 ];
 
 /**
@@ -4521,6 +4896,13 @@ export const ELEMENT_META = {
     accent: '#7fd6cf',
     key: 'L',
     hint: 'Ink-paint Water Zone',
+    cast: CastShape.ZONE
+  },
+  astral: {
+    label: 'Astral Void Blast',
+    accent: '#b98cff',
+    key: 'U',
+    hint: 'Cosmic Singularity',
     cast: CastShape.ZONE
   }
 };

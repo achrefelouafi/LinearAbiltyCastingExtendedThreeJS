@@ -249,6 +249,29 @@ const INK = WRAP(`
   <path d="M55 12C60 20 63 25 63 29A8 8 0 0 1 47 29C47 25 50 20 55 12Z"/>
 `);
 
+/**
+ * Astral Void Blast — a shadow inside its photon ring, with the light bent
+ * round it and gold thrown off the equator.
+ *
+ * The only sigil in the set built around a *hole*: the disc at the middle is
+ * filled with the slot's own accent so it reads as solid at 34px, where a bare
+ * circle would read as a bubble. The tight ring welded to its edge is the
+ * photon ring, the two long arcs sweeping past above and below are the frame
+ * being lensed around it — deliberately not concentric, so they read as light
+ * passing rather than as more rings — and the four tapering spears on the
+ * horizontal are the ejecta, kept in the plane because that is where the gas
+ * is. Nothing radiates evenly: a black hole is an equator, not a star.
+ */
+const ASTRAL = WRAP(`
+  <circle cx="50" cy="50" r="11" fill="currentColor" stroke="none"/>
+  <circle cx="50" cy="50" r="15.5"/>
+  <path d="M18 34C31 22 66 21 81 32"/>
+  <path d="M20 68C33 79 68 78 82 66"/>
+  <path d="M72 50H94M6 50H28"/>
+  <path d="M69 41L88 33M69 59L88 67"/>
+  <path d="M31 41L12 33M31 59L12 67"/>
+`);
+
 /** Keyed by the ids in `ELEMENTS`. */
 export const ELEMENT_SIGILS = {
   ice: ICE,
@@ -263,5 +286,6 @@ export const ELEMENT_SIGILS = {
   cyber: CYBER,
   venom: VENOM,
   quake: QUAKE,
-  ink: INK
+  ink: INK,
+  astral: ASTRAL
 };

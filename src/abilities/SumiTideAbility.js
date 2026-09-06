@@ -35,13 +35,34 @@ const VOLUME_CIRCUMSCRIBE = 1 / Math.cos(Math.PI / VOLUME_SEGMENTS);
 /** How many bodies one tide can have hold of at once. */
 const MAX_GRIPS = 16;
 
+/**
+ * How the tangential current falls away outside the throat, as an exponent on
+ * `core / distance`.
+ *
+ * A real free vortex is 1 — and at 1 the swirl out at the boundary is a third
+ * of the inward pull, so a body caught on the rim arrives at the middle on what
+ * is very nearly a straight line. Slackening it keeps the two comparable the
+ * whole way in, which is the difference between something being wound in and
+ * something going down a drain.
+ */
+const SWIRL_FALLOFF = 0.6;
+
+/**
+ * Ceiling on the centrifugal correction, metres/second — see `_sampleFlow`.
+ *
+ * The correction is bounded on its own at the settings this ships with, and
+ * this is here for the ones it does not: the editor can put the swirl at twenty
+ * metres a second and the grab at a tenth, and the product of those two is a
+ * body leaving the stage on the frame the water reaches it.
+ */
+const MAX_CENTRIFUGE = 14;
+
 /** How many points one frame's droplets are split between. One origin reads as a hose. */
 const RIM_BATCHES = 5;
 
 const _emit = {};
 const _pos = new Vector3();
 const _at = new Vector3();
-const _vel = new Vector3();
 const _centre = new Vector3();
 const _dir = new Vector3();
 
@@ -100,11 +121,18 @@ function swellEnvelope(t) {
  * **What happens to the bodies is the point.** This class answers
  * `handlesOwnHits`, so `DummyField` leaves it alone. Instead it asks
  * `findBodies` who is standing — or already lying — inside the circle, knocks
- * the living *inward* rather than outward, and then keeps hold of all of them:
- * an inward pull, a tangential swirl that turns the pull into a spiral, and,
- * once the throat is open under them, a downward suck with the floor taken out
- * from under them (`Dummy#sink`). They break the surface one at a time, each
- * with its own splash, and the stage's own opaque floor is what hides them.
+ * the living *inward* rather than outward, and then keeps hold of all of them.
+ *
+ * What it does to them from there is three beats, and they have to arrive in
+ * this order or the ability reads as a hole in the floor: the water gets
+ * *under* them and floats them on the surface; it winds them in — each body
+ * spinning about its own axis while the vortex carries it round, both winding
+ * up the nearer the middle it gets, and the whole spiral closing on the axis
+ * over `spiral` seconds rather than settling on whatever ring the current
+ * happens to balance at; and only once one has actually *arrived* does the
+ * floor come out from under it (`Dummy#sink`) and take it down. They break the
+ * surface one at a time, at the middle, each with its own splash, and the
+ * stage's own opaque floor is what hides them.
  *
  * **The rule that makes the editor work.** A cast captures one number — a seed
  * — and a handful of clocks. Not one metre, radian or second is recorded: the
@@ -224,13 +252,46 @@ export class SumiTideAbility extends Ability {
      */
     this._grips = [];
     for (let i = 0; i < MAX_GRIPS; i++) {
-      this._grips.push({ dummy: null, time: 0, under: false, depth: 0 });
+      // `reach` is how far out the tide found this one. It is the whole of the
+      // wind-in schedule: the water is winding *this* body from *there* to the
+      // middle, and a body caught on the rim has further to come than one
+      // caught beside the throat.
+      this._grips.push({ dummy: null, time: 0, reach: 0, under: false, depth: 0 });
     }
     this._gripCount = 0;
     /** Reused by `DummyField#findBodies`, so polling allocates nothing. */
     this._found = [];
     /** The blow that takes a body off its feet, refilled from settings each cast. */
     this._force = { impulse: 0, lift: 0, spin: 0 };
+    /**
+     * Everything `_sampleFlow` needs to answer *how fast is the water here*:
+     * where the vortex is, how hard it is turning, and which body it is being
+     * asked about. Refilled per body per frame rather than closed over, because
+     * the sampler runs once per joint of every body the tide is holding and
+     * neither it nor the loop around it is allowed to make garbage.
+     */
+    this._flow = {
+      cx: 0, // the axis
+      cz: 0,
+      sx: 0, // the body's own centre, which it spins about
+      sy: 0, // ... and rides at, which is not the same as where each joint is
+      sz: 0,
+      radius: 1,
+      core: 1, // the solid-body middle — the throat, in metres
+      flow: 0, // inward, m/s
+      wx: 0, // the winch: one inward velocity for the whole body, m/s
+      wz: 0,
+      swirl: 0, // tangential at the edge of the core, m/s
+      spin: 0, // the body's own turn, radians/second
+      slip: 0, // seconds of lag in the grip — what the orbit has to be paid for
+      ride: 0, // the height the water carries it at
+      buoy: 0, // how hard it is held there
+      rise: 0, // ... and the fastest it may be moved to get there
+      lift: 0, // how much of that survives — none of it, once the throat has it
+      sink: 0 // and how fast it is being taken down instead
+    };
+    /** Bound once: `Dummy#carry` is handed this for every body, every frame. */
+    this._field = (x, y, z, out) => this._sampleFlow(x, y, z, out);
 
     // Scratch state handed to the materials each frame. One object apiece,
     // reused — syncing a standing tide allocates nothing.
@@ -637,10 +698,14 @@ export class SumiTideAbility extends Ability {
   _dropGrip(index) {
     const last = this._gripCount - 1;
     const slot = this._grips[index];
+    // Hands the body its weight back — a corpse the water has finished with and
+    // is still holding up is a corpse that hangs where it was let go of.
+    slot.dummy?.release();
     this._grips[index] = this._grips[last];
     this._grips[last] = slot;
     slot.dummy = null;
     slot.time = 0;
+    slot.reach = 0;
     slot.under = false;
     slot.depth = 0;
     this._gripCount = last;
@@ -652,6 +717,7 @@ export class SumiTideAbility extends Ability {
       this._grips[i].dummy?.release();
       this._grips[i].dummy = null;
       this._grips[i].time = 0;
+      this._grips[i].reach = 0;
       this._grips[i].under = false;
       this._grips[i].depth = 0;
     }
@@ -710,9 +776,123 @@ export class SumiTideAbility extends Ability {
       const slot = this._grips[this._gripCount++];
       slot.dummy = dummy;
       slot.time = 0;
+      // Measured off the solver, not off `position`: `kill` has just built the
+      // ragdoll, so this is where the body actually is rather than the spot it
+      // was standing on before the water hit it.
+      const from = dummy.bodyPoint(_at) ?? dummy.position;
+      slot.reach = Math.hypot(from.x - _centre.x, from.z - _centre.z);
       slot.under = false;
       slot.depth = 0;
     }
+  }
+
+  /**
+   * The velocity of the water at one point, in world space.
+   *
+   * Sampled once per joint of every body the tide is holding — two hundred
+   * times in a frame with a full circle — so it reads its state out of `_flow`
+   * rather than taking it, and allocates nothing.
+   *
+   * Horizontally it is a **Rankine vortex**: solid-body rotation inside the
+   * throat, falling away outside it. The core is the whole point. A free vortex
+   * goes as 1/r and is singular on the axis, so two joints either side of the
+   * middle are handed opposite velocities of unbounded size, the bones between
+   * them cannot absorb the difference, and the body shivers apart instead of
+   * turning. Inside a solid-body core the field *is* a rotation, and a rotation
+   * is a motion every distance constraint in the solver already agrees with —
+   * so a body that reaches the middle is simply turned, hard, which is the
+   * thing being drawn. The core is `throatSize` wide because that is the hole
+   * painted on the floor: the water turns as one exactly where the picture says
+   * there is a hole to turn into.
+   *
+   * The inward pull carries a **centrifugal correction**, and without it none of
+   * the rest of this works. Steering a body toward a velocity cannot hold it on
+   * a curve: a first-order match at rate `grab` slips by `a / grab` against any
+   * acceleration it is asked to produce, and the acceleration a circular orbit
+   * needs is `v² / r` — which at these speeds is *metres per second* of drift
+   * outward. Uncorrected, a tide parks everything it catches on the ring where
+   * that drift happens to cancel the inward pull and turns it there for the rest
+   * of its life, which looks for all the world like a deliberate design decision
+   * and is why it took a trace to find. Adding the slip back makes `flow` mean
+   * what it says: metres per second of inward drift, actually delivered. Inside
+   * the core the swirl goes as r, so `v² / r` goes to *zero* on the axis rather
+   * than to infinity — the solid-body middle that keeps the field from tearing
+   * bodies apart is what keeps this term finite too.
+   *
+   * On top of that comes **the winch** — `wx, wz`, one velocity for the whole
+   * body, computed once in `_drag` and added to every joint unchanged. It is
+   * what actually delivers a body to the middle, and it has to be uniform for
+   * the same reason the vertical does. A radial inflow sampled per joint is a
+   * *convergent* field: it asks the near shoulder and the far one to move
+   * toward each other, the distance constraints refuse, and the projection pass
+   * spends the pull on squeezing the body instead of carrying it. Worse, it
+   * fails hardest exactly where the ability needs it most — a body straddling
+   * the axis is pulled equally in every direction and goes nowhere at all,
+   * which is why tides used to park their catch on a ring a metre out and turn
+   * it there until the water drained. A uniform translation is a rigid motion,
+   * and the solver passes rigid motions through untouched.
+   *
+   * Two more things go on top of that. The body's own spin about its own axis,
+   * which is the difference between something caught in a tornado and something
+   * on a turntable. And the vertical: a spring holding it at the height the
+   * water carries it at — `lift` — until the throat opens under it and `sink`
+   * takes that away.
+   *
+   * The vertical is the one term measured from the **body**, not from the point
+   * being sampled, and it has to be. A spring that reads each joint's own height
+   * pulls every one of them onto the same plane, and within a second what is
+   * floating in the water is a paper cut-out of a person. Reading the body's
+   * centre once gives every joint the same vertical velocity, which lifts the
+   * body without touching its shape — which is what floating does.
+   *
+   * @param {number} x world-space point
+   * @param {number} y
+   * @param {number} z
+   * @param {import('three').Vector3} out written in place
+   */
+  /* eslint-disable-next-line no-unused-vars -- `y` completes the sample point */
+  _sampleFlow(x, y, z, out) {
+    const f = this._flow;
+
+    const dx = f.cx - x;
+    const dz = f.cz - z;
+    const distance = Math.max(1e-3, Math.hypot(dx, dz));
+    const nx = dx / distance;
+    const nz = dz / distance;
+    const reach = saturate(distance / f.radius);
+
+    // Right-handed about +Y, so the spiral turns the same way the pool and the
+    // volume are wound. Opposite senses here and in the shaders is the kind of
+    // mismatch nobody can name and everybody notices.
+    const swirl =
+      f.swirl *
+      (distance < f.core ? distance / f.core : Math.pow(f.core / distance, SWIRL_FALLOFF));
+    // Weighted by how far out the body is, so nothing sits on the rim while the
+    // middle turns without it — and deliberately the *weaker* of the two out
+    // there, because a body that crosses the circle on a straight line has been
+    // sucked in, and the point of this ability is that you watch it go round.
+    // Plus what the orbit costs: see above, this is not optional.
+    const centrifuge = Math.min(MAX_CENTRIFUGE, ((swirl * swirl) / distance) * f.slip);
+    const flow = f.flow * (0.25 + reach * 0.9) + centrifuge;
+
+    // The body's own turn: omega x r, about the vertical through its hips. A
+    // rigid rotation satisfies every bone length exactly, so the projection
+    // pass leaves it alone and the body keeps spinning — put the same energy in
+    // as a shear instead and the constraints quietly eat it within two frames.
+    const spinX = (z - f.sz) * f.spin;
+    const spinZ = -(x - f.sx) * f.spin;
+
+    // A spring toward the height the water is carrying it at, clamped both ways
+    // so a body that arrives three metres out of position is drawn up to the
+    // surface rather than fired at it. Off the body's centre, never off `y`.
+    let rise = (f.ride - f.sy) * f.buoy;
+    rise = Math.min(f.rise, Math.max(-f.rise, rise));
+
+    out.set(
+      nx * flow - nz * swirl + spinX + f.wx,
+      rise * f.lift - f.sink,
+      nz * flow + nx * swirl + spinZ + f.wz
+    );
   }
 
   /**
@@ -728,24 +908,59 @@ export class SumiTideAbility extends Ability {
    * frame rate, and it is also what water actually does to something floating
    * in it.
    *
-   * The target has three parts:
+   * It arrives per **joint** (`Dummy#carry`), not per body, and that is the
+   * whole difference between a whirlpool and a magnet: the water half a metre
+   * nearer the axis is measurably faster than the water at the far shoulder, so
+   * sampling the field where each joint actually is turns the body as well as
+   * carrying it.
    *
-   *  - **inward**, weighted by how far out the body is, so nothing sits on the
-   *    rim while the middle turns without it;
-   *  - **tangential**, weighted the other way, so the pull becomes a spiral
-   *    that tightens — a straight slide to the centre reads as a magnet;
-   *  - **down**, but only once the throat is open *and* the body has had its
-   *    moment turning on the surface, which is the beat that makes the two
-   *    stages of the swallow legible.
+   * Three beats, and they have to be legible in this order:
    *
-   * Vertically the current only ever pulls *down*: matched in both directions
-   * it would hold a body up against gravity, and a corpse hovering over a
-   * whirlpool is worse than one that never went in.
+   *  1. **taken** — the water gets under the body (`wade`) and holds it at the
+   *     surface (`float`). It has to leave the stone: the solver scrubs the
+   *     slide off anything touching the floor, so a corpse lying on it is a
+   *     corpse no vortex can turn. `wound` eases all of this in over `windUp`,
+   *     because a body that snaps to the current on the frame it is caught
+   *     reads as one that was dropped onto a turntable.
+   *  2. **wound in** — it spins about its own axis while the vortex carries it
+   *     round, and the whole spiral closes on the middle over `spiral` seconds.
+   *     This is the part the ability is *for*, and it starts the moment the
+   *     water floods rather than when the throat opens: gate the whole grip on
+   *     the throat and everything the flood caught lies still on the floor
+   *     through a second and a half of whirlpool that is not yet a whirlpool.
    *
-   * The floor is taken out from under a body on the frame it starts to go down
+   *     The closing is a **schedule the water holds the body to**, not a current
+   *     and a hope. `reach` is where the tide found this one and `spiral` is how
+   *     long it has to bring it in, so the wanted radius is known at every
+   *     instant and the winch commands whatever inward speed the body needs to
+   *     be on it (`SumiTideAbility#_sampleFlow`, `wx`/`wz`). Left open-loop it
+   *     does not arrive: steering toward a velocity slips by `a / grab` against
+   *     the `v² / r` an orbit costs, which at these speeds is *metres per
+   *     second* of outward drift, and a body finds the ring where that drift
+   *     cancels the pull and turns there for the rest of the cast. The
+   *     centrifugal term below still feeds that forward so the winch has little
+   *     to do; the schedule is what makes arriving certain rather than likely.
+   *  3. **swallowed** — at the middle, and only there. `inside` gates the
+   *     descent on the body being at the *axis* rather than merely somewhere in
+   *     the hole, so going under reads as the end of the spiral instead of
+   *     something that happened to it on the way. `late` is the failsafe: a body
+   *     the water genuinely cannot move — wedged on another, or a `spiral`
+   *     turned to nothing in the editor — is taken where it lies rather than
+   *     left turning on the surface forever.
+   *
+   * Vertically the match is proportional to how much hold the water has. In air
+   * gravity owns the body completely; in water it does not, and a body that
+   * free-falls through the surface that is supposed to be swallowing it has
+   * disappeared rather than been taken.
+   *
+   * The floor is taken out from under a body as the water takes hold
    * (`Dummy#sink`), and put back if the tide ends before it does.
+   *
+   * @param {number} dt
+   * @param {number} flood how much water there is, 0..1 — what turns the bodies
+   * @param {number} throat how far the middle has given way, 0..1 — what eats them
    */
-  _drag(dt, throat) {
+  _drag(dt, flood, throat) {
     if (dt <= 0) return;
 
     const c = settings.ink;
@@ -756,6 +971,15 @@ export class SumiTideAbility extends Ability {
     // How much of the gap between the body and the water is closed this frame.
     const grab = saturate(gc.grab * dt);
 
+    const f = this._flow;
+    f.cx = _centre.x;
+    f.cz = _centre.z;
+    f.radius = radius;
+    // The turning core *is* the hole painted on the floor.
+    f.core = Math.max(0.3, radius * c.throatSize);
+    f.buoy = gc.buoy;
+    f.rise = gc.rise;
+
     for (let i = this._gripCount - 1; i >= 0; i--) {
       const slot = this._grips[i];
       const dummy = slot.dummy;
@@ -765,8 +989,7 @@ export class SumiTideAbility extends Ability {
         continue;
       }
       const at = dummy.bodyPoint(_at);
-      const velocity = dummy.bodyVelocity(_vel);
-      if (!at || !velocity) {
+      if (!at) {
         this._dropGrip(i);
         continue;
       }
@@ -776,35 +999,73 @@ export class SumiTideAbility extends Ability {
       const dx = _centre.x - at.x;
       const dz = _centre.z - at.z;
       const distance = Math.max(1e-3, Math.hypot(dx, dz));
-      const nx = dx / distance;
-      const nz = dz / distance;
       const reach = saturate(distance / radius);
+
+      // How much of the water is on this body yet.
+      const wound = Easing.outCubic(saturate(slot.time / Math.max(0.05, gc.windUp))) * flood;
+
+      // Where the spiral has got to with this one. `reach` is where it was
+      // found and the schedule closes that to nothing over `spiral` seconds,
+      // easing at both ends so the body is drawn off its mark rather than
+      // yanked, and set down on the axis rather than fired through it.
+      const spiral = Math.max(0.2, gc.spiral);
+      const wind = Easing.inOutCubic(saturate((slot.time - gc.windUp) / spiral));
+      const want = slot.reach * (1 - wind);
+      // The winch: one velocity for the whole body, along the line to the axis,
+      // and never outward — a body already ahead of its own schedule is left to
+      // the current. See `_sampleFlow` for why this cannot be sampled per joint.
+      const winch = gc.winch * Math.max(0, distance - want) * wound;
+      f.wx = (dx / distance) * winch;
+      f.wz = (dz / distance) * winch;
+
+      // At the middle — the only place the water has earned the right to take it
+      // down — or out of patience, whichever comes first. Deliberately tight:
+      // this opens as the body crosses into the inner half of the throat and is
+      // only complete on the axis, so the water closes over it where the
+      // picture says the hole is and not a metre short of it.
+      const inside = saturate((f.core * 0.55 - distance) / Math.max(0.15, f.core * 0.45));
+      const late = saturate((slot.time - gc.hold - spiral) / 0.8);
       // Eased in over most of a second: a body that drops the instant the
       // throat reaches it never appears to have been *taken*, and the whole
       // point of the hold is that you watch it turn before it goes.
-      const held = saturate((slot.time - gc.hold) / 0.9) * throat;
+      const held = throat * saturate((slot.time - gc.hold) / 0.9) * Math.max(inside, late);
 
-      // Right-handed about +Y, so the spiral turns the same way the pool and
-      // the volume are wound. Opposite senses here and in the shaders is the
-      // kind of mismatch nobody can name and everybody notices.
-      const flow = gc.flow * (0.35 + reach) * throat;
-      const swirl = gc.swirl * (0.4 + (1 - reach) * 0.9) * throat;
-      const wantX = nx * flow - nz * swirl;
-      const wantZ = nz * flow + nx * swirl;
-      const wantY = -gc.sink * held;
+      f.sx = at.x;
+      f.sy = at.y;
+      f.sz = at.z;
+      f.flow = gc.flow * wound;
+      f.swirl = gc.swirl * wound;
+      // Faster the nearer the axis it gets — angular momentum, near enough, and
+      // the beat that says the middle of this thing is where you do not want to
+      // be. The vortex's own solid-body core already turns a body once per
+      // orbit; this is the spin on top of that, and it is the one that reads.
+      f.spin = gc.tumble * TAU * (0.35 + (1 - reach) * 0.85) * wound;
+      // Carried highest out on the wall and let down toward the middle, and
+      // heaving with the swell — because nothing in this ability free-runs on
+      // its own sine, the bodies included.
+      f.ride = gc.float * (0.6 + reach * 0.4) * (0.7 + this._swell * 0.6) + c.poolHeight;
+      f.lift = (1 - held) * wound;
+      f.sink = gc.sink * held;
 
-      dummy.push(
-        (wantX - velocity.x) * grab,
-        // Vertically the match is two-way, but only in proportion to how much
-        // hold the water has. At `held` 0 the body is in air and gravity owns
-        // it completely; at 1 it is *in* the water, and water does not let a
-        // body free-fall through it — take the one-way clamp instead and the
-        // floor drops out from under a corpse that then falls three metres in a
-        // fifth of a second, which is a body disappearing rather than a body
-        // being swallowed.
-        (wantY - velocity.y) * grab * held,
-        (wantZ - velocity.z) * grab
-      );
+      // The last argument is the half a velocity cannot do: the water taking the
+      // body's weight. Without it the vertical match has to out-pull gravity
+      // once a frame against a solver that applies it five times, and the body
+      // settles a slip-speed below wherever it is being held — which is under
+      // the floor, which is under the picture.
+      const hold = Math.max(wound, held);
+      // How far behind the water this body runs, in seconds — the lag the
+      // centrifugal correction has to pay for. It is the *effective* rate that
+      // matters, not the setting: a grip that has only half taken hold slips
+      // twice as far.
+      f.slip = 1 / Math.max(0.5, gc.grab * hold);
+      dummy.carry(this._field, grab * hold, grab * Math.max(wound * 0.85, held), hold);
+
+      // The water gets *under* it before it can turn it. The solver scrubs the
+      // slide off any joint touching the floor, so a corpse lying on the stone
+      // will not spin however hard the current pulls: the stone goes first, by
+      // a little, and the buoyancy above holds the body at the surface rather
+      // than letting it fall into the gap that just opened under it.
+      slot.depth = Math.max(slot.depth, gc.wade * wound);
 
       // The floor opens *in step with* the hold, and only ever downward.
       //
@@ -826,7 +1087,7 @@ export class SumiTideAbility extends Ability {
       }
       if (slot.depth > 0.001) dummy.sink(slot.depth);
 
-      if (!slot.under && held > 0 && at.y < 0.08) {
+      if (!slot.under && held > 0.02 && at.y < 0.08) {
         slot.under = true;
         this._swallowFx(at);
       }
@@ -1320,7 +1581,9 @@ export class SumiTideAbility extends Ability {
     // Still fishing while the water is live: a body knocked into the circle by
     // something else is caught the frame it crosses the boundary.
     if (dry < 0.5) this._capture();
-    this._drag(dt, throat);
+    // Two envelopes, not one: the water turns a body from the moment it floods,
+    // and only the *swallow* waits for the middle to give way.
+    this._drag(dt, this._openAmount() * (1 - dry), throat);
 
     // The light sits low, inside the crown — where the water is.
     this._centrePoint(this.position);
