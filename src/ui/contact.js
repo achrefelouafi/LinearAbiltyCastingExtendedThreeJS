@@ -68,7 +68,7 @@ export const CONTACT_MARKUP = `
         <div class="contact__who">
           <span class="contact__status"><i></i>Available for work</span>
           <span class="contact__name">Chiro</span>
-          <span class="contact__role">Real-time VFX &amp; shader engineer</span>
+          <span class="contact__role">Creative dev &mdash; 3D, motion, games</span>
         </div>
       </div>
 
