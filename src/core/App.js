@@ -11,6 +11,7 @@ import { DustMotes } from '../world/DustMotes.js';
 import { ContactShadows } from '../world/ContactShadows.js';
 
 import { AssetLoader } from '../loaders/AssetLoader.js';
+import { getStoneTextures } from '../loaders/StoneTextures.js';
 import { buildSerpentGeometry } from '../assets/SerpentGeometry.js';
 import { CharacterController } from '../animation/CharacterController.js';
 import { DummyField } from '../combat/DummyField.js';
@@ -31,10 +32,24 @@ import { PostProcessing } from '../postprocessing/PostProcessing.js';
 import { HUD, LoadingScreen } from '../ui/HUD.js';
 import { Editor } from '../ui/Editor.js';
 
-import { settings, ELEMENTS } from '../config/settings.js';
+import { settings, ELEMENTS, ELEMENT_META } from '../config/settings.js';
 
 const HDR_URL = './hdri/spruit_sunrise.hdr';
 const SERPENT_URL = './models/snake.glb';
+
+/** Hand the page back for one frame, so the loading veil can repaint. */
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+/**
+ * Poll `test` once a frame until it passes or `timeout` runs out.
+ *
+ * Resolves either way: everything this waits on during boot is an optimisation,
+ * and a slow download must not be able to hold the loading screen up forever.
+ */
+async function waitFor(test, timeout) {
+  const deadline = performance.now() + timeout;
+  while (!test() && performance.now() < deadline) await nextFrame();
+}
 
 /**
  * Application root: owns every subsystem and the frame loop.
@@ -287,15 +302,123 @@ export class App {
       }
     });
 
-    this.loading.setProgress(0.85, 'Compiling shaders…');
-    // Compile everything up front so the first cast never stutters.
-    await this.renderer.gl.compileAsync(this.scene, this.camera);
+    await this._precompile(0.85, 0.99);
 
     this.loading.setProgress(1, 'Ready');
     this.loading.hide();
     this.hud.reveal();
 
     this.start();
+  }
+
+  /**
+   * Build every ability and draw it once, behind the loading veil.
+   *
+   * This used to be a single `WebGLRenderer#compileAsync` over the scene, and it
+   * was doing close to nothing, for two separate reasons.
+   *
+   * The first is that **the abilities were not in the scene yet.** Their pools
+   * are lazy, so at that point not one ability object existed and there was
+   * nothing of theirs to compile.
+   *
+   * The second would have bitten even if they had been: **three compiles a
+   * program for the state a material is drawn in, and `compile` guesses that
+   * state from the render target that happens to be bound.** The program cache
+   * key carries `outputColorSpace` and `toneMapping`, and both differ between
+   * drawing to the canvas (sRGB, ACES) and drawing into the composer's HDR
+   * target (linear, none) — which is the only way this app ever draws. Every
+   * program that call produced was keyed for a render that never happens, and
+   * was compiled a second time on the first real frame. The light counts have
+   * the same problem: the distortion pass renders with the camera restricted to
+   * one layer, so its materials want a *no point lights* variant that a compile
+   * against the full camera never asks for.
+   *
+   * So the warm-up is a real frame from the real pipeline instead — depth
+   * prepass, distortion pass, shadow map, composer — with the ability revealed
+   * inside it. That pays up front, one ability at a time, for everything the
+   * first cast used to pay for mid-fight: the geometry generation, the program
+   * compiles for all four passes, and the first upload of every vertex buffer.
+   *
+   * @param {number} from progress ratio to start the labels at
+   * @param {number} to   progress ratio to finish on
+   */
+  async _precompile(from, to) {
+    const elements = this.abilities.elements;
+    // Impact-only shaders: these are built on the first decal or shell of each
+    // kind, which is a second hitch a moment after the first cast's.
+    const releaseDecals = this.decals.prewarm();
+    const releaseBursts = this.bursts.prewarm();
+
+    // The arrow and the zone circle are hidden until the first arm, so they
+    // would otherwise compile on the first press of Q.
+    this._warmDraw([this.aim.object3D]);
+
+    const warmed = [];
+    for (let i = 0; i < elements.length; i++) {
+      const element = elements[i];
+      this.loading.setProgress(
+        from + (to - from) * (i / elements.length),
+        `Compiling ${ELEMENT_META[element]?.label ?? element}…`
+      );
+      // Both halves below block the main thread for as long as they take, so
+      // yield first or the veil never shows a single one of these labels.
+      await nextFrame();
+
+      const ability = this.abilities.prewarm(element);
+      if (!ability) continue;
+      warmed.push(ability.group);
+      this._warmDraw([ability.group]);
+    }
+
+    // Building the Monolith Rift is what *starts* the cathedral scan
+    // downloading (loaders/StoneTextures.js), and a texture is uploaded to the
+    // GPU by the first draw that binds it after its image lands — which would
+    // be the first cast again, decoding four JPEGs mid-frame. So wait for them
+    // and draw once more. Everything else on this pass is already compiled;
+    // this frame exists only to move bytes.
+    await waitFor(() => getStoneTextures().state.loaded >= 4, 4000);
+    this._warmDraw(warmed);
+
+    releaseDecals();
+    releaseBursts();
+  }
+
+  /**
+   * One full pipeline frame with `roots` forced visible.
+   *
+   * Visibility and frustum culling are both overridden, because three skips an
+   * invisible subtree outright and a culled mesh never reaches `setProgram` —
+   * either one would leave a shader for the first cast to compile. Only what
+   * this call changed is put back, so a mesh that was hidden by its own
+   * constructor stays hidden.
+   *
+   * @param {THREE.Object3D[]} roots
+   */
+  _warmDraw(roots) {
+    const hidden = [];
+    const culled = [];
+
+    for (const root of roots) {
+      root.traverse((node) => {
+        if (node.visible === false) {
+          node.visible = true;
+          hidden.push(node);
+        }
+        if (node.frustumCulled === true) {
+          node.frustumCulled = false;
+          culled.push(node);
+        }
+      });
+    }
+
+    // Same order as `frame()`, so every pass sees what it will see in flight.
+    this.renderer.gl.shadowMap.needsUpdate = true;
+    this.contactShadows.render(this.scene);
+    this.post.sync(this.elapsed, this.flash);
+    this.post.render();
+
+    for (const node of hidden) node.visible = false;
+    for (const node of culled) node.frustumCulled = true;
   }
 
   start() {

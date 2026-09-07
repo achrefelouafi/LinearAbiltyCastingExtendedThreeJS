@@ -313,6 +313,29 @@ export class DecalSystem {
   }
 
   /**
+   * Put one decal of every type in the scene, visible, for a warm-up render.
+   *
+   * A decal's material is built on the first spawn of its type, so without this
+   * the first *impact* of a cast — not even the cast itself — compiles a shader
+   * mid-frame. `App#precompile` reveals these for one draw and then calls the
+   * returned function to hand them back to their pools.
+   *
+   * @returns {() => void} release
+   */
+  prewarm() {
+    const warmed = Object.values(DecalType).map((type) => {
+      const decal = this._poolFor(type).acquire();
+      decal.mesh.visible = true;
+      this.group.add(decal.mesh);
+      return decal;
+    });
+
+    return () => {
+      for (const decal of warmed) this._poolFor(decal.type).release(decal);
+    };
+  }
+
+  /**
    * @param {number} type   DecalType.*
    * @param {THREE.Vector3} position
    * @param {object} options

@@ -66,6 +66,35 @@ export class AbilityManager {
     this.selected = element;
   }
 
+  /** Registered ability ids, in the order the HUD lists them. */
+  get elements() {
+    return ELEMENTS.filter((element) => ABILITY_TYPES[element]);
+  }
+
+  /**
+   * Build one instance of an ability without casting it.
+   *
+   * The pools are lazy on purpose — nothing is constructed *during* a cast — but
+   * something still has to pay for the first instance, and by default that is
+   * the first cast: a few hundred milliseconds of geometry generation followed
+   * by a GPU stall while the driver compiles the shaders those new meshes just
+   * brought into the scene. `App#load` calls this for every element behind the
+   * loading screen instead, so the first cast of a session costs what the
+   * fiftieth does.
+   *
+   * The instance goes straight back into the pool, hidden and parented to the
+   * scene, exactly as if it had been cast and retired.
+   *
+   * @returns {import('./Ability.js').Ability|null}
+   */
+  prewarm(element) {
+    const pool = this.pools.get(element);
+    if (!pool) return null;
+    const ability = pool.acquire();
+    pool.release(ability);
+    return ability;
+  }
+
   /**
    * Cast the selected ability along a line.
    *
