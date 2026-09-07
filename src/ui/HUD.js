@@ -1,5 +1,6 @@
 import { ELEMENTS, ELEMENT_META } from '../config/settings.js';
 import { ELEMENT_SIGILS } from './glyphs.js';
+import { CONTACT_MARKUP, ContactCard } from './contact.js';
 
 /**
  * Heads-up display: the ability bar, controls, live stats and toasts.
@@ -72,10 +73,13 @@ export class HUD {
         }).join('')}
       </div>
 
+      ${CONTACT_MARKUP}
+
       <div class="hud__toast" data-toast></div>
       <div class="hud__paused" data-paused>Paused</div>
     `;
 
+    this.contact = new ContactCard(root);
     this.cards = new Map();
     for (const card of root.querySelectorAll('.ability-card')) {
       this.cards.set(card.dataset.element, card);
@@ -103,6 +107,7 @@ export class HUD {
       card.classList.toggle('is-active', key === element);
     }
     const meta = ELEMENT_META[element];
+    this.contact.setAccent(meta?.accent);
     if (meta && !options.silent) this.showToast(`${meta.hint} selected`);
   }
 
@@ -131,6 +136,11 @@ export class HUD {
     this._cooldownShown.set(element, ratio);
     card.style.setProperty('--cooldown', ratio);
     card.classList.toggle('is-cooling', ratio > 0.001);
+  }
+
+  /** Play the contact card's entrance once the loading veil is clearing. */
+  reveal() {
+    this.contact.reveal();
   }
 
   setPaused(paused) {

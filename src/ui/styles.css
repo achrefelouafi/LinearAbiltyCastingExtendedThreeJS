@@ -461,3 +461,515 @@ body {
     width: 78px;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Contact card
+ *
+ * The bottom-right corner is the only one that is free at every width the
+ * showcase is seen at: the ability bar is placed from `left: 50%` and so can
+ * never be wider than half the window, which pins its right edge at 75vw, and
+ * the editor's column stops well above the floor. The help panel owns the
+ * whole left side on a short window, which is why the card is not under the
+ * title where the credit would otherwise belong.
+ * ------------------------------------------------------------------ */
+
+.hud__contact {
+  --contact-accent: var(--ui-accent);
+  position: absolute;
+  right: 22px;
+  bottom: 26px;
+  width: 278px;
+  pointer-events: auto;
+  opacity: 0;
+}
+
+/*
+ * The HUD sits behind the loading veil, so the entrance is only worth playing
+ * once the veil starts to clear — `HUD.reveal()` adds this, and the delay lands
+ * the card just after the fade.
+ */
+.hud__contact.is-ready {
+  animation: contact-in 0.85s cubic-bezier(0.2, 0.85, 0.25, 1) 0.45s both;
+}
+
+@keyframes contact-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+.contact {
+  position: relative;
+  overflow: hidden;
+  padding: 13px 14px;
+  border-radius: var(--ui-radius);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(158deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 46%),
+    var(--ui-bg-solid);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: var(--ui-shadow), 0 0 30px -18px var(--contact-accent);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.contact:hover {
+  border-color: color-mix(in srgb, var(--contact-accent) 45%, rgba(255, 255, 255, 0.16));
+  box-shadow: var(--ui-shadow), 0 0 34px -12px var(--contact-accent);
+}
+
+/* Accent wash behind the header, tinted by whichever ability is selected. */
+.contact::before {
+  content: '';
+  position: absolute;
+  inset: -40% 30% 55% -30%;
+  background: radial-gradient(closest-side, var(--contact-accent), transparent 72%);
+  opacity: 0.18;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.contact:hover::before {
+  opacity: 0.3;
+}
+
+/* A slow sheen, so the card catches the eye without ever blinking at you. */
+.contact::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  bottom: -60%;
+  left: -60%;
+  width: 42%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.09) 45%,
+    rgba(255, 255, 255, 0.16) 50%,
+    transparent
+  );
+  transform: skewX(-18deg) translateX(0);
+  pointer-events: none;
+  animation: contact-sheen 9s ease-in-out 2.5s infinite;
+}
+
+@keyframes contact-sheen {
+  0%,
+  62% {
+    transform: skewX(-18deg) translateX(0);
+  }
+  92%,
+  100% {
+    transform: skewX(-18deg) translateX(560%);
+  }
+}
+
+.contact__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.contact__portrait {
+  position: relative;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  padding: 2px;
+  border-radius: 50%;
+  box-shadow: 0 0 20px -8px var(--contact-accent);
+}
+
+/* The ring: one turning conic gradient, so it costs a composited rotation. */
+.contact__portrait::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.08) 0 44%,
+    var(--contact-accent) 62%,
+    #ffffff 72%,
+    rgba(255, 255, 255, 0.08) 86% 100%
+  );
+  animation: contact-ring 7s linear infinite;
+}
+
+@keyframes contact-ring {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/*
+ * The crop.
+ *
+ * The photograph is square and so is the circle, so `object-fit` has nothing
+ * to do and `object-position` nothing to move — the whole shot lands in the
+ * circle with the face off to the right. The framing has to be a transform
+ * against this clip instead: the head sits at 62% across and 40% down, and
+ * 1.3 is as far as it can be pushed towards the middle before the right edge
+ * of the photograph pulls into view.
+ */
+.contact__frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #0b0f14;
+}
+
+.contact__portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.3) translate(-11.5%, 9.5%);
+  filter: grayscale(0.4) contrast(1.06) brightness(1.04);
+  transition: filter 0.45s ease, transform 0.45s ease;
+}
+
+.contact:hover .contact__portrait img {
+  filter: grayscale(0) contrast(1.06) brightness(1.08);
+  transform: scale(1.38) translate(-11.5%, 9.5%);
+}
+
+.contact__who {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contact__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #7ff0b6;
+}
+
+.contact__status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3ee08a;
+  animation: contact-pulse 2.4s ease-out infinite;
+}
+
+@keyframes contact-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(62, 224, 138, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(62, 224, 138, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(62, 224, 138, 0);
+  }
+}
+
+.contact__name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.15;
+}
+
+.contact__role {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ui-text-dim);
+}
+
+.contact__note {
+  position: relative;
+  margin: 11px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-border);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ui-text-dim);
+}
+
+.contact__links {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.contact__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  border: 1px solid var(--ui-border);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--ui-text);
+  text-decoration: none;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.contact__link:hover,
+.contact__link:focus-visible {
+  transform: translateX(3px);
+  background: rgba(255, 255, 255, 0.09);
+  outline: none;
+}
+
+.contact__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  background: rgba(0, 0, 0, 0.35);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.contact__icon svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+
+.contact__link-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.contact__link-text b {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.contact__link-text em {
+  font-size: 9.5px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-text-dim);
+}
+
+.contact__go {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-left: auto;
+  opacity: 0.4;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.contact__link:hover .contact__go,
+.contact__link:focus-visible .contact__go {
+  opacity: 1;
+  transform: translate(2px, -2px);
+}
+
+/* Each link keeps its own colour: X stays white, the studio takes the accent. */
+.contact__link--x:hover,
+.contact__link--x:focus-visible {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 22px -12px rgba(255, 255, 255, 0.8);
+}
+
+.contact__link--x:hover .contact__icon,
+.contact__link--x:focus-visible .contact__icon {
+  background: #fff;
+  border-color: #fff;
+  color: #05070a;
+}
+
+.contact__link--site:hover,
+.contact__link--site:focus-visible {
+  border-color: color-mix(in srgb, var(--contact-accent) 60%, transparent);
+  box-shadow: 0 6px 24px -12px var(--contact-accent);
+}
+
+.contact__link--site:hover .contact__icon,
+.contact__link--site:focus-visible .contact__icon {
+  color: var(--contact-accent);
+  border-color: color-mix(in srgb, var(--contact-accent) 60%, transparent);
+  box-shadow: 0 0 16px -6px var(--contact-accent);
+}
+
+/* ---- collapse ---------------------------------------------------- */
+
+.contact__toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.contact:hover .contact__toggle,
+.contact__toggle:focus-visible {
+  opacity: 1;
+  border-color: var(--ui-border);
+  background: rgba(0, 0, 0, 0.4);
+  outline: none;
+}
+
+.contact__toggle-bar {
+  width: 9px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Collapsed: the portrait alone, and the whole tile is the way back. */
+.hud__contact.is-collapsed {
+  width: auto;
+}
+
+.hud__contact.is-collapsed .contact {
+  padding: 9px;
+}
+
+.hud__contact.is-collapsed .contact__who,
+.hud__contact.is-collapsed .contact__note,
+.hud__contact.is-collapsed .contact__links {
+  display: none;
+}
+
+.hud__contact.is-collapsed .contact:hover {
+  transform: scale(1.06);
+}
+
+.hud__contact.is-collapsed .contact__toggle {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  opacity: 1;
+  border-color: transparent;
+  background: transparent;
+}
+
+.hud__contact.is-collapsed .contact__toggle-bar {
+  display: none;
+}
+
+/*
+ * Collapsed, the tile has to say what it is. The label hangs outside the card,
+ * which means letting the corner overflow — and the sheen, which lives on the
+ * same box, has to be switched off or it sweeps out into the scene.
+ */
+.hud__contact.is-collapsed .contact {
+  overflow: visible;
+}
+
+.hud__contact.is-collapsed .contact::after {
+  display: none;
+}
+
+.hud__contact.is-collapsed .contact__toggle::after {
+  content: 'Work with me';
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 10px);
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-solid);
+  box-shadow: var(--ui-shadow);
+  color: var(--ui-text);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(8px, -50%);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.hud__contact.is-collapsed .contact:hover .contact__toggle::after,
+.hud__contact.is-collapsed .contact__toggle:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact::after,
+  .contact__portrait::before,
+  .contact__status i {
+    animation: none;
+  }
+  .hud__contact.is-ready {
+    animation-duration: 0.01ms;
+    animation-delay: 0s;
+  }
+}
+
+/*
+ * Short window: the editor's column comes down towards the corner, so the card
+ * gives up the line about the work and keeps the two links.
+ */
+@media (max-height: 860px) {
+  .contact__note {
+    display: none;
+  }
+  .contact__links {
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid var(--ui-border);
+  }
+}
+
+/* Narrow window: it opens as the portrait alone (see `ROOM` in contact.js), so
+   these only apply once someone has opened it by hand. */
+@media (max-width: 760px) {
+  .hud__contact {
+    right: 14px;
+    bottom: 14px;
+    width: 214px;
+  }
+  .contact__link-text em {
+    display: none;
+  }
+  .contact__portrait {
+    flex-basis: 46px;
+    width: 46px;
+    height: 46px;
+  }
+  .contact__name {
+    font-size: 15px;
+  }
+}

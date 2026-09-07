@@ -293,6 +293,7 @@ export class App {
 
     this.loading.setProgress(1, 'Ready');
     this.loading.hide();
+    this.hud.reveal();
 
     this.start();
   }
