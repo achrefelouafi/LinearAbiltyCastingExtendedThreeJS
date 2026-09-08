@@ -2,11 +2,74 @@
 
 A skillshot VFX sandbox built with **Three.js**, **Vite** and hand-written **GLSL**.
 
+![three.js r185](https://img.shields.io/badge/three.js-r185-000000?logo=three.js&logoColor=white)
+![Vite 8.1](https://img.shields.io/badge/Vite-8.1-646CFF?logo=vite&logoColor=white)
+![hand-written GLSL](https://img.shields.io/badge/shaders-hand--written%20GLSL-5586A4)
+![10 abilities](https://img.shields.io/badge/abilities-10-9dff2b)
+![2,261 live sliders](https://img.shields.io/badge/live%20sliders-2%2C261-a878f0)
+![procedural](https://img.shields.io/badge/geometry-procedural-ff4a2a)
+
+![The Astral Void Blast: a black disc with a photon ring welded to its edge, wrapped in a sheared violet nebula, with void-shards falling in around it](docs/screenshots/astral.jpg)
+
 Ten abilities and two ways to aim them. Three are **line casts**: press the key to arm, a
 League-of-Legends style arrow appears on the ground and swings with the mouse, click to fire. The
 other seven are **far casts**: the arrow is replaced by a circle with a deliberately thick boundary
 that follows the cursor and answers the only question a ground-targeted AoE has to answer before you
 commit — how much space is this going to take.
+
+---
+
+## The ten abilities
+
+Every frame below is the renderer's own output, captured from the running sandbox at the moment the
+cast peaks. No compositing, no touch-up, and nothing in shot that the app does not draw itself.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/ward.jpg" alt="Volcanic Horror Ward" width="100%"></td>
+<td width="50%"><img src="docs/screenshots/acid.jpg" alt="Caustic Bloom" width="100%"></td>
+</tr>
+<tr>
+<td><b>Q — Volcanic Horror Ward</b> · <sub>far cast</sub><br>A runed barrier standing over a floor of live lava.</td>
+<td><b>E — Caustic Bloom</b> · <sub>far cast</sub><br>A pool of live acid under a raymarched column of toxic gas.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/growth.jpg" alt="Arborist's Growth Chrono-Summon" width="100%"></td>
+<td><img src="docs/screenshots/cyber.jpg" alt="Neon Cyber Serpent" width="100%"></td>
+</tr>
+<tr>
+<td><b>R — Arborist's Growth</b> · <sub>far cast</sub><br>A summon that picks its own targets and fires a lance of green light.</td>
+<td><b>F — Cyber Serpent</b> · <sub>line cast</sub><br>A neon serpent whose whole trail is one vertex-shader ribbon.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/venom.jpg" alt="Crystallized Venom Surge" width="100%"></td>
+<td><img src="docs/screenshots/quake.jpg" alt="Brutalist Earth Blast" width="100%"></td>
+</tr>
+<tr>
+<td><b>V — Crystallized Venom Surge</b> · <sub>line cast</sub><br>An amethyst seam that tears down the line and opens into a starburst.</td>
+<td><b>X — Brutalist Earth Blast</b> · <sub>line cast</sub><br>Photo-scanned monoliths, a dust shockwave and real ballistic shrapnel.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/ink.jpg" alt="Sumi Tide" width="100%"></td>
+<td><img src="docs/screenshots/astral.jpg" alt="Astral Void Blast" width="100%"></td>
+</tr>
+<tr>
+<td><b>B — Sumi Tide</b> · <sub>far cast</sub><br>Ink floods the stone, a wall of water stands up, and what it catches is wound under.</td>
+<td><b>Z — Astral Void Blast</b> · <sub>far cast</sub><br>A singularity that lenses the whole frame and eats what it catches.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/cascade.jpg" alt="Baleful Cascade Mark" width="100%"></td>
+<td><img src="docs/screenshots/rend.jpg" alt="Celestial Rend" width="100%"></td>
+</tr>
+<tr>
+<td><b>N — Baleful Cascade Mark</b> · <sub>far cast</sub><br>A crown of blades that throws itself, one blade at a time, at the nearest body.</td>
+<td><b>K — Celestial Rend</b> · <sub>far cast</sub><br>Shards drive into a mark until it detonates into a thirty-metre column of light.</td>
+</tr>
+</table>
+
+---
+
+## Six of them, up close
 
 **E — Caustic Bloom.** A far cast, and a poison acid aura. A slick of corrosion runs across the
 floor to the circle; the stone inside it crazes, pits and dissolves into a pool of live acid with
@@ -572,6 +635,8 @@ target, blurred twice and projected onto the ground.
 ---
 
 ## Editor and presets
+
+![The sandbox with its HUD and the lil-gui editor open beside a live cast](docs/screenshots/editor.jpg)
 
 Press **G** for the panel. Folders: Presets, Global, Aim indicator, Far-cast circle, Volcanic Ward,
 Caustic Bloom, Arborist's Growth, Cyber Serpent, Crystallized Venom Surge, Brutalist Earth Blast,
