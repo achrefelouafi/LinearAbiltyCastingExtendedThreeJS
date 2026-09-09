@@ -40,6 +40,11 @@
 export const CAST_ANIMATIONS = ['cast1', 'cast2', 'cast3'];
 
 export const settings = {
+  performance: {
+    maxFps: 60,
+    pixelRatio: 1.25,
+    shadowResolution: 2048
+  },
   /* ------------------------------------------------------------------ */
   /* Global multipliers                                                  */
   /* ------------------------------------------------------------------ */

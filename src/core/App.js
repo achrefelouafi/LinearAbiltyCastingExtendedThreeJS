@@ -422,16 +422,36 @@ export class App {
   }
 
   start() {
-    this.time.reset();
-    const loop = () => {
-      this._raf = requestAnimationFrame(loop);
-      this.frame();
-    };
-    this._raf = requestAnimationFrame(loop);
+    if (this._running) return;
+    this._running = true;
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
+    this._onVisibilityChange();
   }
 
-  stop() {
+  _onVisibilityChange = () => {
     cancelAnimationFrame(this._raf);
+    this._raf = 0;
+    this.time.reset();
+    this._lastFrame = null;
+    if (this._running && !document.hidden) this._raf = requestAnimationFrame(this._loop);
+  };
+
+  _loop = (timestamp) => {
+    if (!this._running || document.hidden) return;
+    this._raf = requestAnimationFrame(this._loop);
+    const interval = 1000 / Math.max(1, settings.performance.maxFps);
+    const elapsed = this._lastFrame === null ? interval : timestamp - this._lastFrame;
+    // Allow a small rAF rounding error without accidentally halving the rate.
+    if (elapsed < interval - 0.5) return;
+    this._lastFrame = timestamp - (elapsed >= interval ? elapsed % interval : 0);
+    this.frame();
+  };
+
+  stop() {
+    this._running = false;
+    cancelAnimationFrame(this._raf);
+    this._raf = 0;
+    document.removeEventListener('visibilitychange', this._onVisibilityChange);
   }
 
   /* ------------------------------------------------------------------ */

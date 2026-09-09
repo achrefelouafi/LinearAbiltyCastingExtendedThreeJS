@@ -165,12 +165,20 @@ export class PostProcessing {
     u.uFlashColor.value.copy(flash.color);
 
     this.distortionPass.uniforms.uScale.value = post.enabled ? post.distortion : 0;
-    this.distortionPass.enabled = post.enabled;
+    this.distortionPass.enabled = post.enabled && post.distortion !== 0;
   }
 
   render() {
     this._renderDepth();
-    this._renderDistortion();
+    // Invisible ability pools must not keep an empty distortion pass running.
+    let hasDistortion = false;
+    if (settings.post.enabled && settings.post.distortion !== 0) {
+      this.scene.traverseVisible((node) => {
+        if (node.isMesh && (node.layers.mask & (1 << LAYER.DISTORTION))) hasDistortion = true;
+      });
+    }
+    this.distortionPass.enabled = hasDistortion;
+    if (hasDistortion) this._renderDistortion();
     // Tone mapping is applied by OutputPass: three automatically disables the
     // in-material tone mapping while rendering into the composer's targets.
     this.composer.render();

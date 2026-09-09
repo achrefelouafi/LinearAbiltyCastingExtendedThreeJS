@@ -717,7 +717,12 @@ Knobs worth knowing about, because they reshape their ability the most:
   and removed — changing the light count forces three to recompile every material.
 - Shadow maps update exactly once per frame even though the scene is rendered several times.
 - `renderer.compileAsync()` runs during boot so the first cast never stutters on shader compile.
-- Pixel ratio is capped at 1.75; the depth and distortion buffers are half resolution.
+- Rendering defaults to 60 FPS, pauses in hidden tabs, and resets the clock on return.
+- Pixel ratio defaults to a cap of 1.25; the depth and distortion buffers are half resolution.
+- Sun shadows default to 2048², and empty distortion passes are skipped.
+- The editor's **Performance** folder adjusts the FPS limit, pixel ratio and shadow resolution live.
+  For lower power use, choose 30 FPS, pixel ratio 1 and 1024² shadows; these trade smoothness
+  and sharpness for less rendering work. Performance settings are included in presets.
 
 Four concurrent casts — the pool's ceiling, whichever slots they came from — is what the budget is
 set against, and `MAX_CONCURRENT` in `AbilityManager` retires the oldest one past that whichever
