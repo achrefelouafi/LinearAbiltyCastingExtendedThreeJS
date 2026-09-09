@@ -2,6 +2,7 @@ import { PointLight } from 'three';
 import { settings } from '../config/settings.js';
 import { damp } from '../utils/math.js';
 
+/** Ceiling. `settings.performance.lightCount` picks the actual size at boot. */
 const POOL_SIZE = 6;
 
 /**
@@ -11,11 +12,19 @@ const POOL_SIZE = 6;
  * removing a light changes the lighting program's cache key and forces three to
  * recompile *every* material, which is the classic cause of a hitch when a VFX
  * spawns. Unused lights simply sit at zero intensity.
+ *
+ * That parking is not free — a light at zero intensity is still evaluated by
+ * every lit fragment of the floor, the character and the targets — so the size
+ * is a budget, read once here. Changing it later is what the comment above
+ * warns about, so a new value applies on the next reload; `acquire` already
+ * returns null past the end, and an ability without a light simply goes
+ * unlit rather than failing.
  */
 export class LightPool {
   constructor(scene) {
     this.lights = [];
-    for (let i = 0; i < POOL_SIZE; i++) {
+    const count = Math.max(1, Math.min(POOL_SIZE, settings.performance.lightCount));
+    for (let i = 0; i < count; i++) {
       const light = new PointLight(0xffffff, 0, 10, 2);
       light.castShadow = false;
       light.intensity = 0;

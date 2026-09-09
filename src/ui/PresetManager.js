@@ -5,8 +5,10 @@ import { settings, applySettings, snapshotSettings, DEFAULT_SETTINGS, validateSe
 // presets saved against the old elemental blocks would merge into nothing.
 const STORAGE_KEY = 'frost-sandbox.presets.v1';
 const LAST_KEY = 'frost-sandbox.lastPreset';
+const BROKEN_KEY = 'frost-sandbox.presets.v1.unreadable';
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_PRESETS = 100;
+const MAX_STORAGE_BYTES = 8 * 1024 * 1024;
 
 function validName(name) {
   if (typeof name !== 'string' || !name.trim() || name.length > 80 || ['__proto__', 'prototype', 'constructor'].includes(name)) {
@@ -39,22 +41,89 @@ export class PresetManager {
     this.presets = this._read();
   }
 
+  /**
+   * Load the stored collection, preset by preset.
+   *
+   * Validation is deliberately *not* all-or-nothing here, unlike an import. A
+   * collection in storage was written by this app over months; one entry the
+   * current tree no longer understands — a knob renamed between builds is
+   * enough — must not take the rest of the user's work with it. Entries that
+   * fail are quarantined: they stay out of the UI but are written back
+   * untouched, so nothing is destroyed by the next save.
+   */
   _read() {
+    this._quarantine = Object.create(null);
+    this._pendingBackup = null;
+    let raw = null;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw && new TextEncoder().encode(raw).length > 8 * 1024 * 1024) throw new Error('Preset storage exceeds 8 MB.');
-      return raw ? validateCollection(JSON.parse(raw)) : Object.create(null);
+      raw = localStorage.getItem(STORAGE_KEY);
     } catch (error) {
-      console.warn('[PresetManager] could not read presets', error);
+      console.warn('[PresetManager] storage unavailable', error);
       return Object.create(null);
+    }
+    if (!raw) return Object.create(null);
+
+    let data;
+    try {
+      if (new TextEncoder().encode(raw).length > MAX_STORAGE_BYTES) {
+        throw new Error('Preset storage exceeds 8 MB.');
+      }
+      data = JSON.parse(raw);
+      assertPlainObject(data);
+      assertSafeTree(data);
+    } catch (error) {
+      // The blob itself is unusable, so nothing can be salvaged from it. Move
+      // it aside rather than letting the next save overwrite it in place.
+      console.warn('[PresetManager] unreadable preset collection', error);
+      this._pendingBackup = raw;
+      this._backupUnreadable();
+      return Object.create(null);
+    }
+
+    const result = Object.create(null);
+    for (const [name, preset] of Object.entries(data)) {
+      try {
+        if (Object.keys(result).length >= MAX_PRESETS) throw new Error('Maximum 100 presets per collection.');
+        validName(name);
+        result[name] = validateSettings(preset);
+      } catch (error) {
+        this._quarantine[name] = preset;
+        console.warn(`[PresetManager] preset "${name}" is not loadable and was left in storage`, error);
+      }
+    }
+    return result;
+  }
+
+  /** How many stored presets this build could not read. */
+  get quarantined() {
+    return Object.keys(this._quarantine).length;
+  }
+
+  _backupUnreadable() {
+    if (this._pendingBackup === null) return true;
+    try {
+      localStorage.setItem(BROKEN_KEY, this._pendingBackup);
+      this._pendingBackup = null;
+      return true;
+    } catch (error) {
+      console.warn('[PresetManager] backup failed; original presets remain untouched', error);
+      return false;
     }
   }
 
-  _write() {
+  _write(presets = this.presets) {
+    // Retry a failed backup before allowing any replacement of the original.
+    if (!this._backupUnreadable()) return false;
+    const quarantine = Object.assign(Object.create(null), this._quarantine);
+    for (const name of Object.keys(presets)) delete quarantine[name];
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.presets));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...quarantine, ...presets }));
+      this.presets = presets;
+      this._quarantine = quarantine;
+      return true;
     } catch (error) {
       console.warn('[PresetManager] could not persist presets', error);
+      return false;
     }
   }
 
@@ -69,8 +138,8 @@ export class PresetManager {
   save(name) {
     try { validName(name); } catch { return false; }
     if (!this.has(name) && this.names.length >= MAX_PRESETS) return false;
-    this.presets[name] = snapshotSettings();
-    this._write();
+    const next = Object.assign(Object.create(null), this.presets, { [name]: snapshotSettings() });
+    if (!this._write(next)) return false;
     try { localStorage.setItem(LAST_KEY, name); } catch { /* Storage is optional. */ }
     return true;
   }
@@ -87,17 +156,17 @@ export class PresetManager {
     const base = name.slice(0, 65);
     let copy = `${base} copy`;
     let index = 2;
-    while (this.has(copy)) copy = `${base} copy ${index++}`;
-    this.presets[copy] = structuredClone(this.presets[name]);
-    this._write();
+    while (this.has(copy) || Object.hasOwn(this._quarantine, copy)) copy = `${base} copy ${index++}`;
+    const next = Object.assign(Object.create(null), this.presets, { [copy]: structuredClone(this.presets[name]) });
+    if (!this._write(next)) return null;
     return copy;
   }
 
   remove(name) {
     if (!this.has(name)) return false;
-    delete this.presets[name];
-    this._write();
-    return true;
+    const next = Object.assign(Object.create(null), this.presets);
+    delete next[name];
+    return this._write(next);
   }
 
   reset() {
@@ -168,8 +237,7 @@ export class PresetManager {
     const imported = validateCollection(data);
     const merged = Object.assign(Object.create(null), this.presets, imported);
     if (Object.keys(merged).length > MAX_PRESETS) throw new Error('Maximum 100 saved presets.');
-    this.presets = merged;
-    this._write();
+    if (!this._write(merged)) throw new Error('Could not persist imported presets. Existing storage was preserved.');
     return { imported: Object.keys(imported), applied: false };
   }
 

@@ -110,8 +110,14 @@ export class DustMotes {
   }
 
   update(elapsed, anchor) {
+    const amount = settings.environment.dustAmount;
+    // The fragment shader already discards every mote at zero, but 2,600
+    // points are transformed, clipped and binned before it gets the chance.
+    this.points.visible = amount > 0.001;
+    if (!this.points.visible) return;
+
     this.material.uniforms.uTime.value = elapsed;
-    this.material.uniforms.uAmount.value = settings.environment.dustAmount;
+    this.material.uniforms.uAmount.value = amount;
     // Keep the volume centred on the action without re-uploading positions.
     if (anchor) this.points.position.set(anchor.x, 0, anchor.z);
   }

@@ -33,7 +33,8 @@ export class PerformancePanel {
           <label class="performance__label">Quality mode<select data-profile><option>Balanced</option><option>Economy</option><option>Custom</option></select></label>
           <div class="performance__controls" data-controls></div>
           <label class="performance__bloom"><input type="checkbox" data-idle-bloom>Bloom while idle</label>
-          <p class="performance__note">Saved on this device, separately from effect presets.</p>
+          <label class="performance__bloom"><input type="checkbox" data-dynamic>Adapt resolution to frame rate</label>
+          <p class="performance__note">Saved on this device, separately from effect presets. The light budget that comes with a quality mode applies on the next reload.</p>
         </section>
         <section role="tabpanel" id="perf-compare" aria-labelledby="perf-tab-compare" data-section="compare" hidden>
         <label class="performance__label">Sample label<input data-label maxlength="80" placeholder="e.g. after · idle" value="After · idle"></label>
@@ -76,8 +77,10 @@ export class PerformancePanel {
     }
     this.profileSelect = this.element.querySelector('[data-profile]');
     this.bloomCheckbox = this.element.querySelector('[data-idle-bloom]');
+    this.dynamicCheckbox = this.element.querySelector('[data-dynamic]');
     this.profileSelect.value = performanceProfile();
     this.bloomCheckbox.checked = settings.performance.idleBloom;
+    this.dynamicCheckbox.checked = settings.performance.dynamicResolution;
     const changed = () => {
       savePerformancePreferences();
       this.cancelRecording('Settings changed; start a new sample.');
@@ -91,13 +94,18 @@ export class PerformancePanel {
       settings.performance.idleBloom = this.bloomCheckbox.checked;
       changed();
     });
+    this.dynamicCheckbox.addEventListener('change', () => {
+      settings.performance.dynamicResolution = this.dynamicCheckbox.checked;
+      changed();
+    });
     this.controls = [];
     const options = [
       ['maxFps', 'Active FPS', [30, 60, 120]],
       ['idleFps', 'Idle FPS', [15, 30, ['No reduction', 240]]],
       ['pixelRatio', 'Pixel ratio', [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]],
       ['shadowResolution', 'Shadow size', [1024, 2048, 4096]],
-      ['shadowFps', 'Shadow refresh', [15, 30, ['Every frame', 240]]]
+      ['shadowFps', 'Shadow refresh', [15, 30, ['Every frame', 240]]],
+      ['bloomScale', 'Bloom resolution', [['Full', 1], ['Three quarters', 0.75], ['Half', 0.5]]]
     ];
     for (const [key, title, values] of options) {
       const label = document.createElement('label');
@@ -204,7 +212,7 @@ export class PerformancePanel {
     this.status.textContent = message;
   }
 
-  record(dt, cpuMs, { mode, targetFps }) {
+  record(dt, cpuMs, { mode, targetFps, scale = 1 }) {
     if (dt <= 0) return;
     const info = this.renderer.info;
     this.frames++;
@@ -235,7 +243,8 @@ export class PerformancePanel {
       triangles: info.render.triangles,
       geometries: info.memory.geometries,
       textures: info.memory.textures,
-      canvas: `${this.renderer.domElement.width} × ${this.renderer.domElement.height}`,
+      canvas: `${this.renderer.domElement.width} × ${this.renderer.domElement.height}` +
+        (scale < 1 ? ` · ${Math.round(scale * 100)}% adaptive` : ''),
       mode, targetFps
     };
     const value = this.latest;
@@ -248,6 +257,7 @@ export class PerformancePanel {
       Object.values(this.rows).forEach((row, i) => { row.textContent = values[i]; });
       this.profileSelect.value = performanceProfile();
       this.bloomCheckbox.checked = settings.performance.idleBloom;
+      this.dynamicCheckbox.checked = settings.performance.dynamicResolution;
       for (const [key, select] of this.controls) select.value = String(settings.performance[key]);
       if (this.recording) this.status.textContent = `Recording… ${Math.ceil(10 - this.recording.elapsed)} seconds left.`;
     }

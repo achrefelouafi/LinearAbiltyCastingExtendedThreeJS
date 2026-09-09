@@ -2,6 +2,7 @@ import { loadPerformancePreferences } from '../config/PerformancePreferences.js'
 import { Vector3, MathUtils } from 'three';
 
 import { Renderer } from './Renderer.js';
+import { AdaptiveResolution } from './AdaptiveResolution.js';
 import { Cadence } from './Cadence.js';
 import { PerformancePanel } from '../ui/PerformancePanel.js';
 import { Time } from './Time.js';
@@ -86,6 +87,8 @@ export class App {
     this._activeUntil = 0;
     /** Seconds of real time since the sun's shadow map was last rebuilt. */
     this._shadowCadence = new Cadence();
+    /** Corrects the pixel-ratio guess once the device has been observed. */
+    this._resolution = new AdaptiveResolution();
 
     /**
      * Seconds left before each ability can be armed again. Per element, so
@@ -335,6 +338,11 @@ export class App {
     this.loading.setProgress(1, 'Ready');
     this.loading.hide();
     this.hud.reveal();
+
+    const unreadable = this.editor.unreadablePresets;
+    if (unreadable) {
+      this.hud.showToast(`${unreadable} saved preset(s) could not be read — left untouched in storage`, 4000);
+    }
 
     this.start();
   }
@@ -597,6 +605,18 @@ export class App {
     const live = this._liveEffects;
     if (live || this.decals.active.length > 0 || this.aim.isArmed) this._markActive();
 
+    // Only frames the loop was actually trying to deliver at `maxFps` carry a
+    // usable signal; the scaler ignores the rest.
+    const active = this.paused || performance.now() < this._activeUntil;
+    if (settings.performance.dynamicResolution) {
+      if (this._resolution.sample(raw, this._targetFps(), active)) {
+        this.renderer.resolutionScale = this._resolution.scale;
+      }
+    } else if (this.renderer.resolutionScale !== 1) {
+      this._resolution.reset();
+      this.renderer.resolutionScale = 1;
+    }
+
     this.performancePanel.beginGpu();
     this.contactShadows.setPosition(this.character.position.x, this.character.position.z);
     this.contactShadows.render(this.scene, raw);
@@ -611,7 +631,7 @@ export class App {
     }
 
     this.post.sync(this.elapsed, this.flash);
-    this.post.render(live, this.paused || performance.now() < this._activeUntil);
+    this.post.render(live, active);
     this.performancePanel.endGpu();
 
     /* ---- readouts ---- */
@@ -621,7 +641,8 @@ export class App {
     this.hud.setArmed(this.aim.isArmed);
     this.performancePanel.record(raw, performance.now() - cpuStart, {
       targetFps: this._targetFps(),
-      mode: this.paused ? 'Paused' : performance.now() < this._activeUntil ? 'Active' : 'Idle'
+      mode: this.paused ? 'Paused' : active ? 'Active' : 'Idle',
+      scale: this.renderer.resolutionScale
     });
   }
 

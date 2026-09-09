@@ -25,14 +25,24 @@ export class Editor {
    */
   constructor(hooks = {}) {
     this.hooks = hooks;
-    this.presets = new PresetManager();
 
     this.gui = new GUI({ title: 'VFX Editor', width: 330 });
     this.gui.domElement.style.setProperty('--title-height', '30px');
 
-    this._presetState = { name: 'My preset', selected: this.presets.names[0] ?? '' };
-
-    this._buildPresets();
+    /*
+     * Folder order here is not the order they appear in.
+     *
+     * `Editor.range` is what teaches `SettingsValidation` the bounds a slider
+     * was declared with, and `PresetManager` validates the stored collection
+     * against exactly those bounds the moment it is constructed. Reading the
+     * presets first — as this used to — meant the registry was still empty at
+     * boot and every number fell back to the blanket ±10,000, while a later
+     * import was checked against the real ranges: the same file could load on
+     * startup and be rejected from the import button.
+     *
+     * So the sliders are declared first and the Presets folder is moved back
+     * to the top of the panel afterwards, where it belongs.
+     */
     this._buildPerformance();
     this._buildGlobal();
     this._buildAim();
@@ -52,6 +62,11 @@ export class Editor {
     this._buildCamera();
     this._buildCharacter();
     this._buildDummies();
+
+    this.presets = new PresetManager();
+    this._presetState = { name: 'My preset', selected: this.presets.names[0] ?? '' };
+    this._buildPresets();
+    this.gui.$children.prepend(this.presetFolder.domElement);
 
     // Everything starts collapsed, top-level folders included. There are enough
     // controls here that any folder left open pushes the rest off the screen,
@@ -97,6 +112,15 @@ export class Editor {
     return group;
   }
 
+  /**
+   * Stored presets this build could not read, for a caller that has somewhere
+   * visible to say so. Reporting it from the constructor would put the message
+   * behind the loading veil, where nobody would ever see it.
+   */
+  get unreadablePresets() {
+    return this.presets.quarantined;
+  }
+
   refresh() {
     if (this._performanceState) this._performanceState.profile = performanceProfile();
     this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
@@ -128,7 +152,11 @@ export class Editor {
     folder
       .add(settings.performance, 'shadowFps', { '15 FPS': 15, '30 FPS': 30, 'Every frame': 240 })
       .name('Shadow refresh');
+    folder
+      .add(settings.performance, 'bloomScale', { Full: 1, 'Three quarters': 0.75, Half: 0.5 })
+      .name('Bloom resolution');
     folder.add(settings.performance, 'idleBloom').name('Bloom while idle');
+    folder.add(settings.performance, 'dynamicResolution').name('Adapt to frame rate');
   }
 
   _buildPresets() {
@@ -154,7 +182,7 @@ export class Editor {
         {
           save: () => {
             if (!this.presets.save(state.name)) {
-              this.hooks.onToast?.('Invalid name or preset limit reached');
+              this.hooks.onToast?.('Could not save preset. Check the name, preset limit and available storage.');
               return;
             }
             state.selected = state.name;
@@ -189,6 +217,8 @@ export class Editor {
               state.selected = copy;
               refreshOptions();
               this.hooks.onToast?.(`Duplicated to "${copy}"`);
+            } else {
+              this.hooks.onToast?.('Could not duplicate preset. Check the selection, preset limit and available storage.');
             }
           }
         },
@@ -203,6 +233,8 @@ export class Editor {
             if (this.presets.remove(state.selected)) {
               refreshOptions();
               this.hooks.onToast?.('Preset deleted');
+            } else {
+              this.hooks.onToast?.('Could not delete preset. Check the selection and available storage.');
             }
           }
         },

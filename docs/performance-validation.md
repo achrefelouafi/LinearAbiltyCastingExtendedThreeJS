@@ -34,6 +34,13 @@ was still lower. GPU query durations varied substantially, so these samples do n
 a stable per-frame GPU speedup. No wattage, battery-life or temperature claim follows from
 these numbers. Thermal state and background OS work were not controlled.
 
+Per-frame GPU cost is, however, the wrong quantity for a sustained-load question. What the
+same rows say about **duty cycle** is much less ambiguous: before, ~8.4 ms of GPU work landed
+in an 8.33 ms frame period, so the GPU was busy essentially all of the time; after, ~5.7 ms
+landed in a 33.3 ms period, or roughly 17%. That is about six times less GPU work per second
+of wall time, and it is the figure a thermal question is asking about. It still is not a
+temperature measurement.
+
 ## Regression checks
 
 - `npm test`: 15 FPS preserves wall/simulation time, long stalls remain bounded, the 50 ms
@@ -74,3 +81,13 @@ artistic bloom settings can make the change more visible. Balanced keeps idle bl
 Bloom returned when aiming in the browser test. Reset/import preserved Economy preferences.
 Security tests cover reserved keys, atomic imports, numeric ranges, invalid types and
 independent graphics persistence. The browser console had only a missing favicon request.
+
+## Review fixes — September 9, 2026
+
+The reviewed adaptive-rendering changes now initialize the renderer scale before its first pixel-ratio calculation. Preset replacements retire quarantined entries, duplicate names avoid quarantined names, and storage writes commit in-memory changes only after persistence succeeds. If an unreadable collection cannot be backed up, writes leave the original untouched and retry the backup on the next attempt.
+
+Validation: 19 Node tests pass, including five new cases covering quarantine replacement, duplicate collisions, backup failure/retry and failed-write atomicity. Production build and `git diff --check` pass. A browser check using a real WebGLRenderer verifies its initial DPR and canvas dimensions before any settings synchronization, followed by an adaptive resize; no console errors were observed. This does not repeat the full ability lifecycle checks or measure power/temperature.
+
+To repeat the renderer check, start `npm run dev`, open the app, and run `await (await import('/tests/browser/renderer-initialization.js')).checkRendererInitialization()` in the browser console. This browser check is separate from `npm test`.
+
+[Captured command output and browser results](validation/review-fixes-checks.txt).

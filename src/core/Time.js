@@ -1,9 +1,12 @@
 /**
  * Frame timer.
  *
- * Wall time for UI/cooldowns and a bounded simulation delta. The 100 ms
- * simulation budget accommodates the supported 15 FPS idle mode. Visibility
- * changes reset both clocks; long stalls still cannot create huge steps.
+ * Two clocks from one tick. `delta` drives the simulation and is bounded at
+ * 100 ms — enough for the supported 15 FPS idle mode, but never enough for a
+ * stall to teleport an ability. `rawDelta` is unbounded wall time, on purpose:
+ * cooldowns, the camera and the aim indicator are all saturating or clamped,
+ * and they should reflect how long the user actually waited. Visibility
+ * changes reset both.
  */
 export class Time {
   constructor(maxDelta = 0.1) {

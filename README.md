@@ -736,12 +736,32 @@ time in, and it used to cost the same as a four-cast fight:
   builds every ability, that is 37 draws and ~111k instances on a stage with nothing on it.
 - The sun shadow map and the contact shadow refresh at `shadowFps` (30) rather than every frame.
 - Pixel ratio is capped at 1.25; the depth and distortion buffers are half resolution.
+- Ambient dust stops drawing at zero amount instead of transforming 2,600 points to discard them.
 
-The editor's **Performance** folder drives all of it live: frame limit, idle frame limit, pixel
-ratio, shadow resolution, shadow refresh and bloom while idle. Choose **Economy** in the
-editor or the panel's **Graphics → Quality mode** for 30 FPS / 15 FPS idle, pixel ratio 1,
-1024² shadows, a 15 Hz shadow refresh and bloom disabled while idle. **Balanced** restores
-the shipped quality settings. Bloom returns during aiming/effects and while paused for editing.
+**Paying less during a cast, too.** Idle skipping does nothing for the frames you are actually
+playing, so two knobs work on both:
+
+- `bloomScale` runs the bloom chain at a fraction of the frame size. Bloom is a dozen full-screen
+  HDR passes and the largest single item in the GPU frame — measured at 2.3 of 5.8 ms — and its
+  output is blurred by design, so half resolution costs detail nobody can see.
+- `lightCount` is the size of the shared point-light pool. Parked lights sit at zero intensity
+  rather than being added and removed, which avoids a recompile storm, but a parked light is
+  still evaluated by every lit fragment. Read once at boot; a new value applies on reload.
+
+**Correcting the guess.** The pixel-ratio cap is chosen before the app has seen the device.
+With `dynamicResolution` on, sustained overruns walk a render scale down through 0.85 / 0.7 / 0.6
+and back up once the frame budget clears. Only active frames count — idle frames are throttled on
+purpose — and the budget is measured against at most 60 FPS, so a 120 FPS cap on a 60 Hz panel is
+not mistaken for a device in trouble. A device with no stored preference starts on **Economy** if
+it reports a coarse pointer, ≤4 GB of memory or ≤4 cores, so a phone is not handed the desktop
+defaults by someone who never opens the panel.
+
+The editor's **Performance** folder drives all of it live, as does the panel's
+**Graphics → Quality mode**. **Economy** is 30 FPS / 15 FPS idle, pixel ratio 1, 1024² shadows at
+15 Hz, half-resolution bloom, adaptive resolution on and four dynamic lights; **Balanced** restores
+the shipped quality settings. `idleBloom` can drop bloom entirely while nothing is happening — a
+larger saving still, at the cost of the look changing every time the pointer moves, which is why
+Economy halves the chain instead. Bloom returns during aiming/effects and while paused for editing.
 
 Graphics preferences are stored separately on this device. Artistic preset save/export/import,
 load and reset preserve these preferences; old presets' `performance` blocks are ignored.

@@ -105,6 +105,14 @@ export class PostProcessing {
       settings.post.bloomThreshold
     );
     this.composer.addPass(this.bloomPass);
+    // Bloom is sized in CSS pixels rather than device pixels, and scaled again
+    // by the render budget. Its own composite still writes back into the
+    // composer's full-resolution buffer, so a smaller chain costs detail the
+    // blur was going to destroy anyway.
+    this._width = size.x;
+    this._height = size.y;
+    this._bloomScale = null;
+    this._applyBloomSize();
 
     // Tone mapping + sRGB conversion happen here; everything before is linear HDR.
     this.outputPass = new OutputPass();
@@ -116,6 +124,16 @@ export class PostProcessing {
     this.composer.addPass(this.gradePass);
 
     this._clearColor = new Color();
+  }
+
+  /** Resize the bloom chain to `settings.performance.bloomScale`. */
+  _applyBloomSize() {
+    const scale = Math.min(1, Math.max(0.25, settings.performance.bloomScale));
+    this._bloomScale = settings.performance.bloomScale;
+    this.bloomPass.setSize(
+      Math.max(2, Math.round(this._width * scale)),
+      Math.max(2, Math.round(this._height * scale))
+    );
   }
 
   /** Opaque depth for soft particles. */
@@ -187,7 +205,6 @@ export class PostProcessing {
     this.bloomPass.strength = post.bloomStrength;
     this.bloomPass.radius = post.bloomRadius;
     this.bloomPass.threshold = post.bloomThreshold;
-    this.bloomPass.enabled = post.enabled && post.bloomStrength > 0.001;
 
     const u = this.gradePass.uniforms;
     u.uTime.value = elapsed;
@@ -202,8 +219,9 @@ export class PostProcessing {
     u.uFlashStrength.value = flash.strength;
     u.uFlashColor.value.copy(flash.color);
 
-    // `enabled` is not set here: `render` owns it, because whether the pass has
-    // anything to composite is only known once the scene has been walked.
+    // Neither pass' `enabled` is set here: `render` owns both, because whether
+    // the distortion pass has anything to composite is only known once the
+    // scene has been walked, and bloom also depends on the frame's activity.
     this.distortionPass.uniforms.uScale.value = post.enabled ? post.distortion : 0;
   }
 
@@ -225,8 +243,10 @@ export class PostProcessing {
    *   the complete pipeline.
    */
   render(live = true, active = true) {
+    const perf = settings.performance;
     this.bloomPass.enabled = settings.post.enabled && settings.post.bloomStrength > 0.001
-      && (active || settings.performance.idleBloom);
+      && (active || perf.idleBloom);
+    if (this._bloomScale !== perf.bloomScale) this._applyBloomSize();
     if (live) this._renderDepth();
 
     const post = settings.post;
@@ -245,7 +265,10 @@ export class PostProcessing {
   setSize(width, height, pixelRatio) {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
-    this.bloomPass.setSize(width, height);
+    // After the composer, which resizes every pass to the device resolution.
+    this._width = width;
+    this._height = height;
+    this._applyBloomSize();
 
     const w = Math.floor(width * pixelRatio);
     const h = Math.floor(height * pixelRatio);

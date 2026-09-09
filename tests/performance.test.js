@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { Time } from '../src/core/Time.js';
 import { Cadence } from '../src/core/Cadence.js';
+import { AdaptiveResolution } from '../src/core/AdaptiveResolution.js';
 import { ParticleSystem } from '../src/particles/ParticleSystem.js';
 
 function system(life) {
@@ -61,4 +62,38 @@ test('shadow cadence preserves 30 refreshes/second at different display rates', 
     for (let i = 0; i < fps * 10; i++) if (cadence.due(1 / fps, 30)) updates++;
     assert.equal(updates, 300, `display rate ${fps}`);
   }
+});
+
+/** Feed `seconds` of frames at `fps` and report every scale the run produced. */
+function run(resolution, { seconds, fps, targetFps, active = true }) {
+  const dt = 1 / fps;
+  const scales = [];
+  for (let i = 0; i < Math.round(seconds * fps); i++) {
+    if (resolution.sample(dt, targetFps, active)) scales.push(resolution.scale);
+  }
+  return scales;
+}
+
+test('adaptive resolution steps down under sustained overrun and back up when it clears', () => {
+  const resolution = new AdaptiveResolution();
+  // Asking for 60 and delivering 30 for six seconds: three windows, three steps.
+  assert.deepEqual(run(resolution, { seconds: 6, fps: 30, targetFps: 60 }), [0.85, 0.7, 0.6]);
+  assert.equal(resolution.scale, 0.6);
+
+  // It takes three calm windows to earn one step back, and no more than one.
+  assert.deepEqual(run(resolution, { seconds: 4, fps: 60, targetFps: 60 }), []);
+  assert.deepEqual(run(resolution, { seconds: 4, fps: 60, targetFps: 60 }), [0.7]);
+});
+
+test('adaptive resolution ignores idle frames and a display slower than the cap', () => {
+  const idle = new AdaptiveResolution();
+  // 15 FPS against a 60 FPS cap is the idle throttle doing its job, not a
+  // device falling behind; nothing about it should touch the resolution.
+  assert.deepEqual(run(idle, { seconds: 10, fps: 15, targetFps: 60, active: false }), []);
+  assert.equal(idle.scale, 1);
+
+  const capped = new AdaptiveResolution();
+  // A 120 FPS cap on a 60 Hz panel is permanently "late" against the budget.
+  assert.deepEqual(run(capped, { seconds: 10, fps: 60, targetFps: 120 }), []);
+  assert.equal(capped.scale, 1);
 });

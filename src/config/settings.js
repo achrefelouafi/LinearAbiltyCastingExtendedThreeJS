@@ -60,7 +60,29 @@ export const settings = {
     shadowResolution: 2048,
     /** Refresh rate of the sun shadow map *and* the contact shadow. */
     shadowFps: 30,
-    idleBloom: true
+    idleBloom: true,
+    /**
+     * Fraction of the frame size the bloom chain runs at.
+     *
+     * Bloom is a dozen full-screen HDR passes and, measured on this scene, the
+     * single largest item in the GPU frame — 2.3 of 5.8 ms at Economy
+     * settings. Halving its resolution recovers most of that during casts as
+     * well as at rest, which switching it off at idle cannot do, and without
+     * the visible pop that switching brings. The result is blurred by design,
+     * so the lost detail is not detail anyone can see.
+     */
+    bloomScale: 1,
+    /** Let sustained frame-time overruns walk the render scale down. */
+    dynamicResolution: false,
+    /**
+     * Dynamic point lights kept in the scene.
+     *
+     * Read once at boot: the count is part of the lighting program's cache
+     * key, so changing it mid-session recompiles every material in the scene.
+     * Parked lights still cost a per-fragment evaluation, which is why the
+     * low-power profile carries fewer of them.
+     */
+    lightCount: 6
   },
   /* ------------------------------------------------------------------ */
   /* Global multipliers                                                  */

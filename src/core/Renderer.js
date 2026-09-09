@@ -12,6 +12,12 @@ import { settings } from '../config/settings.js';
  */
 export class Renderer {
   constructor(canvas) {
+    /**
+     * Multiplier applied on top of the pixel-ratio cap, owned by
+     * `AdaptiveResolution`. 1 unless the device has proved it cannot keep up.
+     */
+    this.resolutionScale = 1;
+
     this.gl = new WebGLRenderer({
       canvas,
       // Deliberately off. Every pixel this app draws lands in one of the
@@ -53,7 +59,10 @@ export class Renderer {
 
   /** Cap the pixel ratio: 4K + heavy transparency is not worth the fill rate. */
   targetPixelRatio() {
-    return Math.min(window.devicePixelRatio || 1, Math.max(0.5, settings.performance.pixelRatio));
+    const cap = Math.min(window.devicePixelRatio || 1, Math.max(0.5, settings.performance.pixelRatio));
+    // `syncSettings` compares this against the live ratio every frame, so a
+    // change to either the cap or the scale is picked up on the next one.
+    return Math.max(0.5, cap * this.resolutionScale);
   }
 
   get domElement() {
