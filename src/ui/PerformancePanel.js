@@ -1,3 +1,4 @@
+import { performanceProfile, setPerformanceProfile, savePerformancePreferences } from '../config/PerformancePreferences.js';
 import { settings } from '../config/settings.js';
 import { GpuTimer } from '../core/GpuTimer.js';
 
@@ -29,8 +30,10 @@ export class PerformancePanel {
           <p class="performance__note">CPU: browser work. GPU: measured when supported. Frame interval includes the FPS cap.</p>
         </section>
         <section role="tabpanel" id="perf-graphics" aria-labelledby="perf-tab-graphics" data-section="graphics" hidden>
+          <label class="performance__label">Quality mode<select data-profile><option>Balanced</option><option>Economy</option><option>Custom</option></select></label>
           <div class="performance__controls" data-controls></div>
-          <p class="performance__note">Changes apply live and are included in presets.</p>
+          <label class="performance__bloom"><input type="checkbox" data-idle-bloom>Bloom while idle</label>
+          <p class="performance__note">Saved on this device, separately from effect presets.</p>
         </section>
         <section role="tabpanel" id="perf-compare" aria-labelledby="perf-tab-compare" data-section="compare" hidden>
         <label class="performance__label">Sample label<input data-label maxlength="80" placeholder="e.g. after · idle" value="After · idle"></label>
@@ -71,6 +74,23 @@ export class PerformancePanel {
         next.focus();
       });
     }
+    this.profileSelect = this.element.querySelector('[data-profile]');
+    this.bloomCheckbox = this.element.querySelector('[data-idle-bloom]');
+    this.profileSelect.value = performanceProfile();
+    this.bloomCheckbox.checked = settings.performance.idleBloom;
+    const changed = () => {
+      savePerformancePreferences();
+      this.cancelRecording('Settings changed; start a new sample.');
+      onSettingsChange?.();
+    };
+    this.profileSelect.addEventListener('change', () => {
+      setPerformanceProfile(this.profileSelect.value);
+      changed();
+    });
+    this.bloomCheckbox.addEventListener('change', () => {
+      settings.performance.idleBloom = this.bloomCheckbox.checked;
+      changed();
+    });
     this.controls = [];
     const options = [
       ['maxFps', 'Active FPS', [30, 60, 120]],
@@ -90,8 +110,7 @@ export class PerformancePanel {
       select.value = String(settings.performance[key]);
       select.addEventListener('change', () => {
         settings.performance[key] = Number(select.value);
-        this.cancelRecording('Settings changed; start a new sample.');
-        onSettingsChange?.();
+        changed();
       });
       label.append(select);
       this.element.querySelector('[data-controls]').append(label);
@@ -227,6 +246,8 @@ export class PerformancePanel {
       const values = [ms(value.frameMs), ms(value.cpuMs), ms(value.gpuMs), value.calls,
         value.triangles.toLocaleString(), value.canvas];
       Object.values(this.rows).forEach((row, i) => { row.textContent = values[i]; });
+      this.profileSelect.value = performanceProfile();
+      this.bloomCheckbox.checked = settings.performance.idleBloom;
       for (const [key, select] of this.controls) select.value = String(settings.performance[key]);
       if (this.recording) this.status.textContent = `Recording… ${Math.ceil(10 - this.recording.elapsed)} seconds left.`;
     }

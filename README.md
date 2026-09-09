@@ -738,9 +738,17 @@ time in, and it used to cost the same as a four-cast fight:
 - Pixel ratio is capped at 1.25; the depth and distortion buffers are half resolution.
 
 The editor's **Performance** folder drives all of it live: frame limit, idle frame limit, pixel
-ratio, shadow resolution and shadow refresh. For lower power use, choose 30 FPS / 15 FPS idle,
-pixel ratio 1, 1024² shadows and a 15 FPS shadow refresh. Note that these values travel inside
-saved presets, which is worth knowing before importing a preset onto a phone.
+ratio, shadow resolution, shadow refresh and bloom while idle. Choose **Economy** in the
+editor or the panel's **Graphics → Quality mode** for 30 FPS / 15 FPS idle, pixel ratio 1,
+1024² shadows, a 15 Hz shadow refresh and bloom disabled while idle. **Balanced** restores
+the shipped quality settings. Bloom returns during aiming/effects and while paused for editing.
+
+Graphics preferences are stored separately on this device. Artistic preset save/export/import,
+load and reset preserve these preferences; old presets' `performance` blocks are ignored.
+Imports are validated before any mutation: only known fields and matching types are accepted,
+with finite numeric values (editor ranges where registered, otherwise a ±10,000 hard bound),
+valid hex colors and supported cast animations. Reserved prototype keys, arrays and deep trees
+are rejected. Files are limited to 2 MB and collections to 100 presets.
 
 Four concurrent casts — the pool's ceiling, whichever slots they came from — is what the budget is
 set against, and `MAX_CONCURRENT` in `AbilityManager` retires the oldest one past that whichever

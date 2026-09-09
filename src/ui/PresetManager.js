@@ -1,9 +1,30 @@
-import { settings, applySettings, snapshotSettings, DEFAULT_SETTINGS } from '../config/settings.js';
+import { assertPlainObject, assertSafeTree } from '../config/SettingsValidation.js';
+import { settings, applySettings, snapshotSettings, DEFAULT_SETTINGS, validateSettings } from '../config/settings.js';
 
 // Namespaced afresh: the settings tree was rebuilt around the ward ability, so
 // presets saved against the old elemental blocks would merge into nothing.
 const STORAGE_KEY = 'frost-sandbox.presets.v1';
 const LAST_KEY = 'frost-sandbox.lastPreset';
+const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_PRESETS = 100;
+
+function validName(name) {
+  if (typeof name !== 'string' || !name.trim() || name.length > 80 || ['__proto__', 'prototype', 'constructor'].includes(name)) {
+    throw new Error('Use a preset name of 1–80 characters without reserved keys.');
+  }
+}
+
+export function validateCollection(data) {
+  assertPlainObject(data);
+  assertSafeTree(data);
+  if (Object.keys(data).length > MAX_PRESETS) throw new Error('Maximum 100 presets per collection.');
+  const result = Object.create(null);
+  for (const [name, preset] of Object.entries(data)) {
+    validName(name);
+    result[name] = validateSettings(preset);
+  }
+  return result;
+}
 
 /**
  * Preset persistence.
@@ -21,10 +42,11 @@ export class PresetManager {
   _read() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
+      if (raw && new TextEncoder().encode(raw).length > 8 * 1024 * 1024) throw new Error('Preset storage exceeds 8 MB.');
+      return raw ? validateCollection(JSON.parse(raw)) : Object.create(null);
     } catch (error) {
       console.warn('[PresetManager] could not read presets', error);
-      return {};
+      return Object.create(null);
     }
   }
 
@@ -45,26 +67,27 @@ export class PresetManager {
   }
 
   save(name) {
-    if (!name) return false;
+    try { validName(name); } catch { return false; }
+    if (!this.has(name) && this.names.length >= MAX_PRESETS) return false;
     this.presets[name] = snapshotSettings();
     this._write();
-    localStorage.setItem(LAST_KEY, name);
+    try { localStorage.setItem(LAST_KEY, name); } catch { /* Storage is optional. */ }
     return true;
   }
 
   load(name) {
-    const preset = this.presets[name];
-    if (!preset) return false;
-    applySettings(preset);
-    localStorage.setItem(LAST_KEY, name);
+    if (!this.has(name)) return false;
+    try { applySettings(this.presets[name]); } catch { return false; }
+    try { localStorage.setItem(LAST_KEY, name); } catch { /* Storage is optional. */ }
     return true;
   }
 
   duplicate(name) {
-    if (!this.has(name)) return null;
-    let copy = `${name} copy`;
+    if (!this.has(name) || this.names.length >= MAX_PRESETS) return null;
+    const base = name.slice(0, 65);
+    let copy = `${base} copy`;
     let index = 2;
-    while (this.has(copy)) copy = `${name} copy ${index++}`;
+    while (this.has(copy)) copy = `${base} copy ${index++}`;
     this.presets[copy] = structuredClone(this.presets[name]);
     this._write();
     return copy;
@@ -118,30 +141,36 @@ export class PresetManager {
         const file = input.files?.[0];
         if (!file) return resolve({ imported: [], applied: false });
         try {
-          const data = JSON.parse(await file.text());
-          // A settings snapshot always has a `global` block; anything else is
-          // treated as a preset collection.
-          if (data && data.global && data.ward) {
-            applySettings(data);
-            resolve({ imported: [], applied: true });
-          } else {
-            const names = [];
-            for (const [name, preset] of Object.entries(data)) {
-              if (preset && typeof preset === 'object') {
-                this.presets[name] = preset;
-                names.push(name);
-              }
-            }
-            this._write();
-            resolve({ imported: names, applied: false });
-          }
+          if (file.size > MAX_BYTES) throw new Error('Preset files must be at most 2 MB.');
+          resolve(this.importJSON(await file.text()));
         } catch (error) {
           console.error('[PresetManager] import failed', error);
-          resolve({ imported: [], applied: false });
+          resolve({ imported: [], applied: false, error: error.message });
         }
       };
+      input.addEventListener('cancel', () => resolve({ imported: [], applied: false }));
       input.click();
     });
+  }
+
+  importJSON(text) {
+    if (new TextEncoder().encode(text).length > MAX_BYTES) throw new Error('Preset files must be at most 2 MB.');
+    const data = JSON.parse(text);
+    assertPlainObject(data);
+    assertSafeTree(data);
+    // A collection can itself contain a preset named 'global'. Its value
+    // has settings blocks, whereas a snapshot's global block has scalars.
+    if (Object.hasOwn(data, 'global') && data.global &&
+        Object.values(data.global).every(value => value === null || typeof value !== 'object')) {
+      applySettings(data);
+      return { imported: [], applied: true };
+    }
+    const imported = validateCollection(data);
+    const merged = Object.assign(Object.create(null), this.presets, imported);
+    if (Object.keys(merged).length > MAX_PRESETS) throw new Error('Maximum 100 saved presets.');
+    this.presets = merged;
+    this._write();
+    return { imported: Object.keys(imported), applied: false };
   }
 
   /** Current live settings, for callers that want to inspect them. */

@@ -1,3 +1,5 @@
+import { validatePatch, mergeValidated } from './SettingsValidation.js';
+
 /**
  * settings.js — the single source of truth for every tweakable value in the sandbox.
  *
@@ -57,7 +59,8 @@ export const settings = {
     pixelRatio: 1.25,
     shadowResolution: 2048,
     /** Refresh rate of the sun shadow map *and* the contact shadow. */
-    shadowFps: 30
+    shadowFps: 30,
+    idleBloom: true
   },
   /* ------------------------------------------------------------------ */
   /* Global multipliers                                                  */
@@ -4491,24 +4494,21 @@ export const DEFAULT_SETTINGS = structuredClone(settings);
  * Deep-merge a plain object into `settings` in place.
  * Existing object identity is preserved so every live binding keeps working.
  */
-export function applySettings(patch, target = settings) {
-  for (const key of Object.keys(patch)) {
-    const value = patch[key];
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (target[key] && typeof target[key] === 'object') applySettings(value, target[key]);
-    } else if (key in target) {
-      target[key] = value;
-    }
-  }
-  return target;
+export function validateSettings(patch) {
+  return validatePatch(patch, DEFAULT_SETTINGS, settings, { omitPerformance: true });
 }
 
-/** Restore every value to the shipped defaults (in place). */
+export function applySettings(patch) {
+  return mergeValidated(validateSettings(patch), settings);
+}
+
+/** Reset artistic settings while preserving this device's graphics choices. */
 export function resetSettings() {
-  applySettings(structuredClone(DEFAULT_SETTINGS));
+  applySettings(DEFAULT_SETTINGS);
 }
 
-/** Serialisable clone of the current state. */
+/** Artistic preset: device performance preferences are stored separately. */
 export function snapshotSettings() {
-  return structuredClone(settings);
+  const { performance, ...artistic } = settings;
+  return structuredClone(artistic);
 }

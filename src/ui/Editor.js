@@ -1,3 +1,5 @@
+import { registerSettingRange } from '../config/SettingsValidation.js';
+import { performanceProfile, setPerformanceProfile, savePerformancePreferences } from '../config/PerformancePreferences.js';
 import GUI from 'lil-gui';
 import { settings, CAST_ANIMATIONS } from '../config/settings.js';
 import { PresetManager } from './PresetManager.js';
@@ -62,6 +64,7 @@ export class Editor {
   /* ------------------------------------------------------------------ */
 
   static range(folder, object, key, min, max, step, label) {
+    registerSettingRange(object, key, min, max);
     return folder.add(object, key, min, max, step).name(label ?? key);
   }
 
@@ -95,6 +98,7 @@ export class Editor {
   }
 
   refresh() {
+    if (this._performanceState) this._performanceState.profile = performanceProfile();
     this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
   }
 
@@ -109,6 +113,12 @@ export class Editor {
 
   _buildPerformance() {
     const folder = this.gui.addFolder('Performance');
+    this._performanceState = { profile: performanceProfile() };
+    folder.add(this._performanceState, 'profile', ['Balanced', 'Economy', 'Custom']).name('Quality mode').onChange(name => {
+      setPerformanceProfile(name);
+      this.refresh();
+    });
+    folder.onChange(() => { savePerformancePreferences(); this.refresh(); });
     folder.add(settings.performance, 'maxFps', { '30 FPS': 30, '60 FPS': 60, '120 FPS': 120 }).name('Frame limit');
     folder
       .add(settings.performance, 'idleFps', { '15 FPS': 15, '30 FPS': 30, 'Off (no idle drop)': 240 })
@@ -118,6 +128,7 @@ export class Editor {
     folder
       .add(settings.performance, 'shadowFps', { '15 FPS': 15, '30 FPS': 30, 'Every frame': 240 })
       .name('Shadow refresh');
+    folder.add(settings.performance, 'idleBloom').name('Bloom while idle');
   }
 
   _buildPresets() {
@@ -142,7 +153,10 @@ export class Editor {
       .add(
         {
           save: () => {
-            this.presets.save(state.name);
+            if (!this.presets.save(state.name)) {
+              this.hooks.onToast?.('Invalid name or preset limit reached');
+              return;
+            }
             state.selected = state.name;
             refreshOptions();
             this.hooks.onToast?.(`Saved preset "${state.name}"`);
@@ -207,11 +221,11 @@ export class Editor {
             refreshOptions();
             this.refresh();
             this.hooks.onToast?.(
-              result.applied
+              result.error ?? (result.applied
                 ? 'Settings imported'
                 : result.imported.length
                   ? `Imported ${result.imported.length} preset(s)`
-                  : 'Nothing imported'
+                  : 'Nothing imported')
             );
           }
         },

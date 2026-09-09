@@ -224,7 +224,9 @@ export class PostProcessing {
    *   see `App#_liveEffects`. Defaults to true so the boot-time warm-up draws
    *   the complete pipeline.
    */
-  render(live = true) {
+  render(live = true, active = true) {
+    this.bloomPass.enabled = settings.post.enabled && settings.post.bloomStrength > 0.001
+      && (active || settings.performance.idleBloom);
     if (live) this._renderDepth();
 
     const post = settings.post;

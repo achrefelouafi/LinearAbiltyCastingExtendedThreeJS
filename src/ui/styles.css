@@ -1051,3 +1051,7 @@ body {
 .performance__tabs button[aria-selected='true'] { background: #24303c; color: var(--ui-text); }
 .performance section[hidden] { display: none; }
 @media (max-width: 600px) { .performance__body { max-height: min(380px, 55dvh); } }
+
+.performance__controls { margin-top: 12px; }
+.performance .performance__bloom { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.performance__bloom input { min-height: 0; accent-color: var(--ui-accent); }

@@ -1,3 +1,4 @@
+import { loadPerformancePreferences } from '../config/PerformancePreferences.js';
 import { Vector3, MathUtils } from 'three';
 
 import { Renderer } from './Renderer.js';
@@ -75,6 +76,7 @@ async function waitFor(test, timeout) {
  */
 export class App {
   constructor(canvas) {
+    loadPerformancePreferences();
     this.canvas = canvas;
     this.time = new Time();
     this.elapsed = 0;
@@ -609,7 +611,7 @@ export class App {
     }
 
     this.post.sync(this.elapsed, this.flash);
-    this.post.render(live);
+    this.post.render(live, this.paused || performance.now() < this._activeUntil);
     this.performancePanel.endGpu();
 
     /* ---- readouts ---- */

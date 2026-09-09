@@ -53,3 +53,20 @@ these numbers. Thermal state and background OS work were not controlled.
 Temperature and power consumption require a separate sustained test with macOS tools.
 Repeat both builds under consistent power, brightness, thermal and background-work conditions,
 including matched active-cast sequences. The short idle samples above do not replace that test.
+
+## Economy mode and idle bloom follow-up
+
+At Economy settings (30 active / 15 idle FPS, DPR cap 1, 1024² shadows at 15 Hz), two
+10-second samples in the same idle scene changed only `idleBloom`:
+
+| Bloom while idle | FPS | Draw calls/frame | CPU ms/frame | GPU ms/query |
+| --- | ---: | ---: | ---: | ---: |
+| On | 15.00 | 61 | 1.06 | 5.80 |
+| Off | 15.00 | 48 | 1.14 | 3.53 |
+
+These are short diagnostic samples, not power measurements. Side-by-side inspection of a
+frozen idle scene showed no obvious artifact at the default low bloom strength; stronger
+artistic bloom settings can make the change more visible. Balanced keeps idle bloom enabled.
+Bloom returned when aiming in the browser test. Reset/import preserved Economy preferences.
+Security tests cover reserved keys, atomic imports, numeric ranges, invalid types and
+independent graphics persistence. The browser console had only a missing favicon request.
