@@ -93,6 +93,7 @@ export class ContactShadows {
     this.verticalBlur.depthTest = false;
 
     this._clearColor = new Color();
+    this._accumulator = Infinity;
   }
 
   /** Keep the shadow catcher under the character. */
@@ -101,11 +102,33 @@ export class ContactShadows {
     this.group.position.z = z;
   }
 
-  render(scene) {
+  /**
+   * Re-project the catcher.
+   *
+   * Throttled to `settings.performance.shadowFps`: this is four render-target
+   * binds and four draws for a blob under a character that is playing an idle
+   * loop, and the result is blurred twice before anyone sees it, so refreshing
+   * it at half the frame rate is not a difference you can point at.
+   *
+   * @param {THREE.Scene} scene
+   * @param {number} [dt] seconds since the last frame; omit to force a refresh
+   */
+  render(scene, dt = Infinity) {
     const gl = this.renderer.gl;
     const strength = settings.environment.contactShadow;
+    // Opacity is not throttled — the editor slider has to answer immediately.
     this.plane.material.opacity = strength;
     if (strength <= 0.001) return;
+
+    this._accumulator += dt;
+    if (this._accumulator < 1 / Math.max(1, settings.performance.shadowFps)) return;
+    this._accumulator = 0;
+
+    // This pass renders through `shadowCamera`, which is pinned to the contact
+    // layer; letting it build the sun's shadow map would reduce that map to
+    // the character alone. See the note in PostProcessing.
+    const shadowsPending = gl.shadowMap.needsUpdate;
+    gl.shadowMap.needsUpdate = false;
 
     const previousBackground = scene.background;
     const previousOverride = scene.overrideMaterial;
@@ -135,6 +158,7 @@ export class ContactShadows {
     gl.autoClear = previousAutoClear;
     scene.background = previousBackground;
     this.plane.visible = true;
+    gl.shadowMap.needsUpdate = shadowsPending;
   }
 
   _blur(amount) {

@@ -12,6 +12,8 @@ export class ParticleEngine {
   constructor(scene) {
     this.scene = scene;
     this.systems = new Map();
+    /** Set by `flush`: is any system still showing a particle? */
+    this.live = false;
   }
 
   /**
@@ -30,9 +32,21 @@ export class ParticleEngine {
     return system;
   }
 
-  /** Upload the frame's spawn data. Called once, after all abilities update. */
-  flush() {
-    for (const system of this.systems.values()) system.flush();
+  /**
+   * Upload the frame's spawn data and hide the systems that have gone empty.
+   *
+   * Called once, after all abilities have updated, so a system that spawned on
+   * this frame is already visible on the frame it spawned.
+   *
+   * @param {number} time simulation time, the clock `emit` is given
+   */
+  flush(time) {
+    let live = false;
+    for (const system of this.systems.values()) {
+      const emitted = system.flush();
+      if (system.sync(time, emitted)) live = true;
+    }
+    this.live = live;
   }
 
   /**
@@ -47,6 +61,7 @@ export class ParticleEngine {
 
   reset() {
     for (const system of this.systems.values()) system.reset();
+    this.live = false;
   }
 
   dispose() {

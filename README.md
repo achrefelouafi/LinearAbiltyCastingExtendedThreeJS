@@ -715,14 +715,32 @@ Knobs worth knowing about, because they reshape their ability the most:
 - A far cast's targeting circle is two draw calls: one quad and one ring strip.
 - The six dynamic point lights are created at boot and parked at zero intensity rather than added
   and removed — changing the light count forces three to recompile every material.
-- Shadow maps update exactly once per frame even though the scene is rendered several times.
+- The scene is rendered several times per frame, but the sun's shadow map is built exactly once,
+  by the main pass. The depth and distortion passes deliberately hold the flag back: three picks
+  shadow casters by testing them against the layers of the camera the frame is being *rendered*
+  with, and both of those passes pin the camera to a single layer.
 - `renderer.compileAsync()` runs during boot so the first cast never stutters on shader compile.
-- Rendering defaults to 60 FPS, pauses in hidden tabs, and resets the clock on return.
-- Pixel ratio defaults to a cap of 1.25; the depth and distortion buffers are half resolution.
-- Sun shadows default to 2048², and empty distortion passes are skipped.
-- The editor's **Performance** folder adjusts the FPS limit, pixel ratio and shadow resolution live.
-  For lower power use, choose 30 FPS, pixel ratio 1 and 1024² shadows; these trade smoothness
-  and sharpness for less rendering work. Performance settings are included in presets.
+- MSAA is off. Everything is drawn into the composer's (non-multisampled) targets, so `antialias`
+  on the canvas buys nothing and costs a multisampled back buffer plus a resolve per swap.
+
+**Not paying for an empty stage.** Standing still is the state the sandbox spends most of its
+time in, and it used to cost the same as a four-cast fight:
+
+- The loop drops to `idleFps` (30) whenever nothing is cast, armed, decaying or under the cursor,
+  and snaps back to `maxFps` (60) on the first input or spawn. It also suspends entirely in a
+  hidden tab.
+- The depth prepass and the distortion pass are skipped when no ability, particle or burst is
+  alive — those are the only things that read either buffer.
+- Particle systems hide themselves once their last particle has died. Without this a system keeps
+  issuing a full-capacity instanced draw forever after its one cast, and since the boot warm-up
+  builds every ability, that is 37 draws and ~111k instances on a stage with nothing on it.
+- The sun shadow map and the contact shadow refresh at `shadowFps` (30) rather than every frame.
+- Pixel ratio is capped at 1.25; the depth and distortion buffers are half resolution.
+
+The editor's **Performance** folder drives all of it live: frame limit, idle frame limit, pixel
+ratio, shadow resolution and shadow refresh. For lower power use, choose 30 FPS / 15 FPS idle,
+pixel ratio 1, 1024² shadows and a 15 FPS shadow refresh. Note that these values travel inside
+saved presets, which is worth knowing before importing a preset onto a phone.
 
 Four concurrent casts — the pool's ceiling, whichever slots they came from — is what the budget is
 set against, and `MAX_CONCURRENT` in `AbilityManager` retires the oldest one past that whichever

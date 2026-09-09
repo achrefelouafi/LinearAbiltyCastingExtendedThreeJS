@@ -110,8 +110,14 @@ export class Editor {
   _buildPerformance() {
     const folder = this.gui.addFolder('Performance');
     folder.add(settings.performance, 'maxFps', { '30 FPS': 30, '60 FPS': 60, '120 FPS': 120 }).name('Frame limit');
+    folder
+      .add(settings.performance, 'idleFps', { '15 FPS': 15, '30 FPS': 30, 'Off (no idle drop)': 240 })
+      .name('Idle frame limit');
     Editor.range(folder, settings.performance, 'pixelRatio', 0.5, 2, 0.25, 'Pixel ratio');
     folder.add(settings.performance, 'shadowResolution', { Low: 1024, Balanced: 2048, High: 4096 }).name('Shadow resolution');
+    folder
+      .add(settings.performance, 'shadowFps', { '15 FPS': 15, '30 FPS': 30, 'Every frame': 240 })
+      .name('Shadow refresh');
   }
 
   _buildPresets() {

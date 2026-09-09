@@ -1,6 +1,6 @@
 import {
   WebGLRenderer,
-  PCFSoftShadowMap,
+  PCFShadowMap,
   ACESFilmicToneMapping,
   SRGBColorSpace
 } from 'three';
@@ -14,7 +14,14 @@ export class Renderer {
   constructor(canvas) {
     this.gl = new WebGLRenderer({
       canvas,
-      antialias: true,
+      // Deliberately off. Every pixel this app draws lands in one of the
+      // composer's render targets, which are not multisampled; the only thing
+      // ever drawn to the default framebuffer is the grade pass' full-screen
+      // quad, whose single edge is the edge of the screen. Asking for MSAA
+      // here therefore buys no antialiasing at all and costs a 4x
+      // multisampled back buffer plus a full resolve on every swap. Edge AA,
+      // if it is ever wanted, belongs in the composer (SMAA/FXAA).
+      antialias: false,
       powerPreference: 'high-performance',
       stencil: false,
       alpha: false
@@ -24,7 +31,9 @@ export class Renderer {
     this.gl.setSize(window.innerWidth, window.innerHeight, false);
 
     this.gl.shadowMap.enabled = true;
-    this.gl.shadowMap.type = PCFSoftShadowMap;
+    // `PCFSoftShadowMap` is deprecated as of r185 — three downgrades it to
+    // `PCFShadowMap` internally and warns once — so ask for it by name.
+    this.gl.shadowMap.type = PCFShadowMap;
     // The frame renders the scene several times (depth prepass, distortion,
     // contact shadows, main pass). Automatic updates would rebuild the cascade
     // shadow maps for every one of them, so the app flags a single update per

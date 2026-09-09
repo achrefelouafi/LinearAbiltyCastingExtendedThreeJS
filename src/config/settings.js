@@ -40,10 +40,24 @@
 export const CAST_ANIMATIONS = ['cast1', 'cast2', 'cast3'];
 
 export const settings = {
+  /* ------------------------------------------------------------------ */
+  /* Render budget                                                       */
+  /*                                                                     */
+  /* Nothing here changes the look of an ability — these are the knobs    */
+  /* that decide how much work the frame is allowed to cost. `idleFps`    */
+  /* and `shadowFps` are the two that matter for sustained power draw:    */
+  /* an empty stage still has to redraw the character's idle loop, but    */
+  /* it does not have to do it sixty times a second, and the sun's        */
+  /* shadow map does not have to be rebuilt from scratch every frame.     */
+  /* ------------------------------------------------------------------ */
   performance: {
     maxFps: 60,
+    /** Frame cap while nothing is cast, armed or still settling. */
+    idleFps: 30,
     pixelRatio: 1.25,
-    shadowResolution: 2048
+    shadowResolution: 2048,
+    /** Refresh rate of the sun shadow map *and* the contact shadow. */
+    shadowFps: 30
   },
   /* ------------------------------------------------------------------ */
   /* Global multipliers                                                  */
