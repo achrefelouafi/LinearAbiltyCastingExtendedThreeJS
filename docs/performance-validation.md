@@ -1,5 +1,9 @@
 # Rendering validation — 2026-09-09
 
+[Recorded test/build output](validation/latest-checks.txt) includes the timestamp, tested code
+commit and exit codes. Browser measurements below were captured through the diagnostics panel
+and browser evaluation tools; they are separate from the Node test output.
+
 Compared production builds of baseline `8c377c8` and the performance branch with the
 new diagnostics panel and timing/lifetime fixes. Both used the same installed dependencies,
 Chrome 152, a 1440 × 769 CSS-pixel viewport and device pixel ratio 2 on Mac16,5
