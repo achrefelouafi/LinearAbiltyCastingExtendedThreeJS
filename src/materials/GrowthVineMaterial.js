@@ -590,7 +590,6 @@ export function createVineMaterial(environment, shape) {
       uniform float uWitherEdge;
       varying vec3  vGrowthWorld;
       varying float vGrowthT;
-      varying float vGrowthT;
       varying float vGrowthSeed;
       ${WITHER_GLSL}
     `,

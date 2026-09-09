@@ -166,30 +166,10 @@ export class ParticleSystem {
     this._ranges = [];
     this._dirty = false;
 
-    /*
-     * Liveness bookkeeping.
-     *
-     * `instanceCount` is fixed at the pool's capacity and the mesh is never
-     * frustum culled, so without this the system would keep issuing a
-     * full-capacity instanced draw for the rest of the session after its one
-     * and only cast — and `App#_precompile` builds every ability at boot, so
-     * that is the state the app *starts* in. The vertex shader throws dead
-     * particles out of the clip volume, which costs no fill, but the vertex
-     * invocations, the draw call and three's per-object setup are all still
-     * paid.
-     *
-     * Two numbers are enough to know when the last particle has died without
-     * walking the pool: the newest spawn stamp and the longest life handed to
-     * `emit` since the system was last empty. Both are upper bounds, so the
-     * deadline they produce is conservative — the system can linger a frame,
-     * never vanish early.
-     *
-     * The mesh is left *visible* here on purpose: `App#_precompile` warms the
-     * pipeline by drawing the scene once per ability, and a system hidden
-     * before that frame would hand its shader compile back to the first cast,
-     * which is exactly what the warm-up exists to avoid. The first real frame
-     * hides it (see `sync`).
-     */
+    // Conservative bounds let empty pools skip draws without scanning slots.
+    // Retain them until reset: increasing uLifeScale can reveal old particles.
+    // Keep the mesh visible initially so boot warm-up compiles its shaders;
+    // the first engine update hides unused systems.
     this._lastSpawn = -Infinity;
     this._maxLife = 0;
   }
@@ -253,7 +233,6 @@ export class ParticleSystem {
     // Upper bound on when this batch can still be on screen (see the
     // liveness note in the constructor).
     this._lastSpawn = Math.max(this._lastSpawn, time);
-    this._maxLife = Math.max(this._maxLife, life * (1 + Math.abs(lifeVariance)));
 
     for (let n = 0; n < count; n++) {
       const i = this.cursor;
@@ -307,6 +286,7 @@ export class ParticleSystem {
       // --- scalars --------------------------------------------------
       d.spawn[i] = time;
       d.life[i] = Math.max(0.05, life * (1 + (Math.random() - 0.5) * 2 * lifeVariance));
+      this._maxLife = Math.max(this._maxLife, d.life[i]);
       d.size[i] = Math.max(0.001, size * (1 + (Math.random() - 0.5) * 2 * sizeVariance));
       d.seed[i] = Math.random();
       d.spin[i] = (Math.random() - 0.5) * 2 * spin;
@@ -354,12 +334,6 @@ export class ParticleSystem {
 
     const live = this.hasLive(time);
     this.mesh.visible = live;
-    if (!live) {
-      // Drop the bounds so the next cast is measured on its own lifetimes
-      // rather than on the longest one this system has ever emitted.
-      this._lastSpawn = -Infinity;
-      this._maxLife = 0;
-    }
     return live;
   }
 

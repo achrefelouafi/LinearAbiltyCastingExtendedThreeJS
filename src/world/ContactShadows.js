@@ -12,6 +12,7 @@ import {
 import { HorizontalBlurShader } from 'three/addons/shaders/HorizontalBlurShader.js';
 import { VerticalBlurShader } from 'three/addons/shaders/VerticalBlurShader.js';
 import { settings } from '../config/settings.js';
+import { Cadence } from '../core/Cadence.js';
 import { LAYER } from '../core/Layers.js';
 
 /**
@@ -93,7 +94,7 @@ export class ContactShadows {
     this.verticalBlur.depthTest = false;
 
     this._clearColor = new Color();
-    this._accumulator = Infinity;
+    this._cadence = new Cadence();
   }
 
   /** Keep the shadow catcher under the character. */
@@ -120,9 +121,7 @@ export class ContactShadows {
     this.plane.material.opacity = strength;
     if (strength <= 0.001) return;
 
-    this._accumulator += dt;
-    if (this._accumulator < 1 / Math.max(1, settings.performance.shadowFps)) return;
-    this._accumulator = 0;
+    if (!this._cadence.due(dt, settings.performance.shadowFps)) return;
 
     // This pass renders through `shadowCamera`, which is pinned to the contact
     // layer; letting it build the sun's shadow map would reduce that map to

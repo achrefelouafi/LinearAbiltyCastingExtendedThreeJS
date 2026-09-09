@@ -715,11 +715,11 @@ Knobs worth knowing about, because they reshape their ability the most:
 - A far cast's targeting circle is two draw calls: one quad and one ring strip.
 - The six dynamic point lights are created at boot and parked at zero intensity rather than added
   and removed — changing the light count forces three to recompile every material.
-- The scene is rendered several times per frame, but the sun's shadow map is built exactly once,
+- The scene is rendered several times per frame, but the sun's shadow map is built at most once,
   by the main pass. The depth and distortion passes deliberately hold the flag back: three picks
   shadow casters by testing them against the layers of the camera the frame is being *rendered*
   with, and both of those passes pin the camera to a single layer.
-- `renderer.compileAsync()` runs during boot so the first cast never stutters on shader compile.
+- The actual render pipeline is warmed during boot to compile ability shaders before the first cast.
 - MSAA is off. Everything is drawn into the composer's (non-multisampled) targets, so `antialias`
   on the canvas buys nothing and costs a multisampled back buffer plus a resolve per swap.
 
@@ -746,7 +746,18 @@ Four concurrent casts — the pool's ceiling, whichever slots they came from —
 set against, and `MAX_CONCURRENT` in `AbilityManager` retires the oldest one past that whichever
 element it came from. Arming a far-cast circle costs two draw calls.
 
-Live counters (FPS, live particles, instances, draw calls) are in the top-right of the HUD.
+The top-center FPS pill expands into a compact panel with **Metrics**, **Graphics** and
+**Compare** tabs. Metrics include frame interval, CPU work, GPU render time when the browser
+supports asynchronous timer queries, draw calls and canvas resolution. The panel refreshes twice
+per second; it does not force the scene out of idle mode.
+
+Use **Compare → Record 10 seconds**, label the scenario, then **Copy report** to save JSON with
+settings, device context and the sample. Keep viewport and scenario consistent between runs.
+Changing performance settings or hiding the tab cancels a sample. CPU timings are browser work,
+not GPU utilization; GPU timings sample rendering passes, not temperature or power consumption.
+
+Run `npm test` for regression checks covering 15 FPS timing, particle lifetime editing and shadow
+refresh cadence. `npm run build` produces the browser build.
 
 ---
 
@@ -784,3 +795,5 @@ piece of it.
 
 Code is provided as-is for the purposes of this project. The bundled HDR probe and the character
 FBX retain their original licences.
+
+Measured idle samples and regression checks: [performance validation](docs/performance-validation.md).

@@ -1,6 +1,8 @@
 import { Vector3, MathUtils } from 'three';
 
 import { Renderer } from './Renderer.js';
+import { Cadence } from './Cadence.js';
+import { PerformancePanel } from '../ui/PerformancePanel.js';
 import { Time } from './Time.js';
 import { CameraRig } from './CameraRig.js';
 import { frame } from './FrameUniforms.js';
@@ -81,7 +83,7 @@ export class App {
     /** Wall-clock deadline until which the loop runs at `maxFps`. */
     this._activeUntil = 0;
     /** Seconds of real time since the sun's shadow map was last rebuilt. */
-    this._shadowAccumulator = Infinity;
+    this._shadowCadence = new Cadence();
 
     /**
      * Seconds left before each ability can be armed again. Per element, so
@@ -164,6 +166,9 @@ export class App {
       onToast: (message) => this.hud.showToast(message)
     });
 
+    this.performancePanel = new PerformancePanel(this.renderer.gl, {
+      onSettingsChange: () => this.editor.refresh()
+    });
     this._bindEvents();
     this.selectAbility(ELEMENTS[0], { silent: true });
 
@@ -498,6 +503,7 @@ export class App {
     cancelAnimationFrame(this._raf);
     this._raf = 0;
     this.time.reset();
+    this.performancePanel.resetWindow();
     this._lastFrame = null;
     if (this._running && !document.hidden) this._raf = requestAnimationFrame(this._loop);
   };
@@ -523,11 +529,13 @@ export class App {
   /* ------------------------------------------------------------------ */
 
   frame() {
+    const cpuStart = performance.now();
     const gl = this.renderer.gl;
     gl.info.reset();
 
-    const raw = this.time.tick();
-    const dt = this.paused ? 0 : raw * settings.global.timeScale;
+    const simulationDelta = this.time.tick();
+    const raw = this.time.rawDelta;
+    const dt = this.paused ? 0 : simulationDelta * settings.global.timeScale;
     this.elapsed += dt;
 
     /* ---- shared uniforms ---- */
@@ -587,6 +595,7 @@ export class App {
     const live = this._liveEffects;
     if (live || this.decals.active.length > 0 || this.aim.isArmed) this._markActive();
 
+    this.performancePanel.beginGpu();
     this.contactShadows.setPosition(this.character.position.x, this.character.position.z);
     this.contactShadows.render(this.scene, raw);
 
@@ -595,26 +604,23 @@ export class App {
     // every other one: rebuilding a 2048² map from the whole world is the most
     // expensive single thing in the frame, and re-running it for a character
     // mid-idle-loop buys nothing you can see through the PCF blur.
-    this._shadowAccumulator += raw;
-    if (this._shadowAccumulator >= 1 / Math.max(1, settings.performance.shadowFps)) {
-      this._shadowAccumulator = 0;
+    if (this._shadowCadence.due(raw, settings.performance.shadowFps)) {
       gl.shadowMap.needsUpdate = true;
     }
 
     this.post.sync(this.elapsed, this.flash);
     this.post.render(live);
+    this.performancePanel.endGpu();
 
     /* ---- readouts ---- */
     for (const element of ELEMENTS) {
       this.hud.setCooldown(element, this.cooldowns.get(element) ?? 0, settings[element].cooldown);
     }
     this.hud.setArmed(this.aim.isArmed);
-    this.hud.update(raw, () => ({
-      particles: this.particles.countLive(this.elapsed),
-      calls: gl.info.render.calls,
-      spikes: this.abilities.active.reduce((total, ability) => total + ability.instanceCount, 0),
-      abilities: this.abilities.active.length
-    }));
+    this.performancePanel.record(raw, performance.now() - cpuStart, {
+      targetFps: this._targetFps(),
+      mode: this.paused ? 'Paused' : performance.now() < this._activeUntil ? 'Active' : 'Idle'
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -635,6 +641,7 @@ export class App {
     this.contactShadows.dispose();
     this.post.dispose();
     this.environment.dispose();
+    this.performancePanel.dispose();
     this.editor.dispose();
     this.rig.dispose();
     this.renderer.dispose();
