@@ -715,15 +715,85 @@ Knobs worth knowing about, because they reshape their ability the most:
 - A far cast's targeting circle is two draw calls: one quad and one ring strip.
 - The six dynamic point lights are created at boot and parked at zero intensity rather than added
   and removed — changing the light count forces three to recompile every material.
-- Shadow maps update exactly once per frame even though the scene is rendered several times.
-- `renderer.compileAsync()` runs during boot so the first cast never stutters on shader compile.
-- Pixel ratio is capped at 1.75; the depth and distortion buffers are half resolution.
+- The scene is rendered several times per frame, but the sun's shadow map is built at most once,
+  by the main pass. The depth and distortion passes deliberately hold the flag back: three picks
+  shadow casters by testing them against the layers of the camera the frame is being *rendered*
+  with, and both of those passes pin the camera to a single layer.
+- The actual render pipeline is warmed during boot to compile ability shaders before the first cast.
+- MSAA is off. Everything is drawn into the composer's (non-multisampled) targets, so `antialias`
+  on the canvas buys nothing and costs a multisampled back buffer plus a resolve per swap.
+
+**Not paying for an empty stage.** Standing still is the state the sandbox spends most of its
+time in, and it used to cost the same as a four-cast fight:
+
+- The loop drops to `idleFps` (30) whenever nothing is cast, armed, decaying or under the cursor,
+  and snaps back to `maxFps` (60) on the first input or spawn. It also suspends entirely in a
+  hidden tab.
+- The depth prepass and the distortion pass are skipped when no ability, particle or burst is
+  alive — those are the only things that read either buffer.
+- Particle systems hide themselves once their last particle has died. Without this a system keeps
+  issuing a full-capacity instanced draw forever after its one cast, and since the boot warm-up
+  builds every ability, that is 37 draws and ~111k instances on a stage with nothing on it.
+- The sun shadow map and the contact shadow refresh at `shadowFps` (30) rather than every frame.
+- Pixel ratio is capped at 1.25; the depth and distortion buffers are half resolution.
+- Ambient dust stops drawing at zero amount instead of transforming 2,600 points to discard them.
+
+**Paying less during a cast, too.** Idle skipping does nothing for the frames you are actually
+playing, so two knobs work on both:
+
+- `bloomScale` runs the bloom chain at a fraction of the frame size. Bloom is a dozen full-screen
+  HDR passes and the largest single item in the GPU frame — measured at 2.3 of 5.8 ms — and its
+  output is blurred by design, so half resolution costs detail nobody can see.
+- `lightCount` is the size of the shared point-light pool. Parked lights sit at zero intensity
+  rather than being added and removed, which avoids a recompile storm, but a parked light is
+  still evaluated by every lit fragment. Read once at boot; a new value applies on reload.
+
+**Correcting the guess.** The pixel-ratio cap is chosen before the app has seen the device.
+With `dynamicResolution` on, sustained overruns walk a render scale down through 0.85 / 0.7 / 0.6
+and back up once the frame budget clears. Only active frames count — idle frames are throttled on
+purpose — and the budget is measured against at most 60 FPS, so a 120 FPS cap on a 60 Hz panel is
+not mistaken for a device in trouble. Scale reductions also require sustained CPU or GPU
+work above budget, so a lightly loaded 30 Hz display keeps its resolution. Without GPU timing
+support, only measured CPU work can establish an overrun. A device with no stored preference starts on **Economy** if
+it reports a coarse pointer, ≤4 GB of memory or ≤4 cores, so a phone is not handed the desktop
+defaults by someone who never opens the panel.
+
+The editor's **Performance** folder drives all of it live, as does the panel's
+**Graphics → Quality mode**. **Economy** is 30 FPS / 15 FPS idle, pixel ratio 1, 1024² shadows at
+15 Hz, half-resolution bloom, adaptive resolution on and four dynamic lights; **Balanced** restores
+the shipped quality settings. `idleBloom` can drop bloom entirely while nothing is happening — a
+larger saving still, at the cost of the look changing every time the pointer moves, which is why
+Economy halves the chain instead. Bloom returns during aiming/effects and while paused for editing.
+
+Graphics preferences are stored separately on this device. Artistic preset save/export/import,
+load and reset preserve these preferences; old presets' `performance` blocks are ignored.
+Imports are validated before any mutation: only known fields and matching types are accepted,
+with finite numeric values (editor ranges where registered, otherwise a ±10,000 hard bound),
+valid hex colors and supported cast animations. Reserved prototype keys, arrays and deep trees
+are rejected. **Export all presets** includes quarantined entries unchanged as JSON values.
+**Download unreadable backup** saves a wholly unreadable collection verbatim, including after
+reload or a failed storage backup. These recovery files preserve data for repair; unsupported
+entries must be repaired before importing them into this build. Files are limited to 2 MB and collections to 100 presets.
 
 Four concurrent casts — the pool's ceiling, whichever slots they came from — is what the budget is
 set against, and `MAX_CONCURRENT` in `AbilityManager` retires the oldest one past that whichever
 element it came from. Arming a far-cast circle costs two draw calls.
 
-Live counters (FPS, live particles, instances, draw calls) are in the top-right of the HUD.
+The top-center FPS pill expands into a compact panel with **Metrics**, **Graphics** and
+**Compare** tabs. Metrics include frame interval, CPU work, GPU render time when the browser
+supports asynchronous timer queries, draw calls and canvas resolution. The panel refreshes twice
+per second; it does not force the scene out of idle mode.
+
+Use **Compare → Record 10 seconds**, label the scenario, then **Copy report** to save JSON with
+settings, device context and the sample. Keep viewport and scenario consistent between runs.
+Reports include an effective-state timeline with frame/time offsets, adaptive scale, canvas size
+and actual light-pool size. Mixed states and a light budget awaiting reload are explicitly flagged;
+treat these samples as variable conditions when comparing runs.
+Changing performance settings or hiding the tab cancels a sample. CPU timings are browser work,
+not GPU utilization; GPU timings sample rendering passes, not temperature or power consumption.
+
+Run `npm test` for regression checks covering 15 FPS timing, particle lifetime editing and shadow
+refresh cadence. `npm run build` produces the browser build.
 
 ---
 
@@ -761,3 +831,5 @@ piece of it.
 
 Code is provided as-is for the purposes of this project. The bundled HDR probe and the character
 FBX retain their original licences.
+
+Measured idle samples and regression checks: [performance validation](docs/performance-validation.md).

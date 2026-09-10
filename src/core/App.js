@@ -1,6 +1,10 @@
+import { loadPerformancePreferences } from '../config/PerformancePreferences.js';
 import { Vector3, MathUtils } from 'three';
 
 import { Renderer } from './Renderer.js';
+import { AdaptiveResolution } from './AdaptiveResolution.js';
+import { Cadence } from './Cadence.js';
+import { PerformancePanel } from '../ui/PerformancePanel.js';
 import { Time } from './Time.js';
 import { CameraRig } from './CameraRig.js';
 import { frame } from './FrameUniforms.js';
@@ -37,6 +41,14 @@ import { settings, ELEMENTS, ELEMENT_META } from '../config/settings.js';
 const HDR_URL = './hdri/spruit_sunrise.hdr';
 const SERPENT_URL = './models/snake.glb';
 
+/**
+ * How long the loop keeps running at full rate after the last thing happened.
+ *
+ * Long enough to cover what outlives the effect that caused it — the camera
+ * easing back onto the character, screen shake bleeding off, a flash decaying.
+ */
+const ACTIVE_GRACE = 1.5;
+
 /** Hand the page back for one frame, so the loading veil can repaint. */
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -65,11 +77,18 @@ async function waitFor(test, timeout) {
  */
 export class App {
   constructor(canvas) {
+    loadPerformancePreferences();
     this.canvas = canvas;
     this.time = new Time();
     this.elapsed = 0;
     this.paused = false;
     this._raf = 0;
+    /** Wall-clock deadline until which the loop runs at `maxFps`. */
+    this._activeUntil = 0;
+    /** Seconds of real time since the sun's shadow map was last rebuilt. */
+    this._shadowCadence = new Cadence();
+    /** Corrects the pixel-ratio guess once the device has been observed. */
+    this._resolution = new AdaptiveResolution();
 
     /**
      * Seconds left before each ability can be armed again. Per element, so
@@ -79,7 +98,7 @@ export class App {
 
     /* ---- core ---- */
     this.renderer = new Renderer(canvas);
-    this.rig = new CameraRig(canvas);
+    this.rig = new CameraRig(canvas, { onInteraction: () => this._markActive() });
     this.camera = this.rig.camera;
 
     this.environment = new Environment(this.renderer, this.camera);
@@ -152,6 +171,9 @@ export class App {
       onToast: (message) => this.hud.showToast(message)
     });
 
+    this.performancePanel = new PerformancePanel(this.renderer.gl, {
+      onSettingsChange: () => this.editor.refresh()
+    });
     this._bindEvents();
     this.selectAbility(ELEMENTS[0], { silent: true });
 
@@ -172,12 +194,19 @@ export class App {
       this.dust.setPixelRatio(pixelRatio);
     });
 
-    this.input.on('pointer:move', (pointer) => this.aim.point(pointer));
+    this.input.on('pointer:move', (pointer) => {
+      this._markActive();
+      this.aim.point(pointer);
+    });
     this.input.on('pointer:confirm', (pointer) => {
+      this._markActive();
       this.aim.point(pointer);
       this.aim.confirm();
     });
-    this.input.on('action', (action, slot) => this._handleAction(action, slot));
+    this.input.on('action', (action, slot) => {
+      this._markActive();
+      this._handleAction(action, slot);
+    });
 
     this.aim.on('cast', (origin, direction, distance) => this._cast(origin, direction, distance));
     this.aim.on('reject', () => this.hud.showToast('Too close — aim further out'));
@@ -235,6 +264,7 @@ export class App {
 
   /** Select an ability and arm it, unless it is still cooling down. */
   armAbility(element = this.element) {
+    this._markActive();
     if ((this.cooldowns.get(element) ?? 0) > 0) {
       this.hud.showToast('Not ready');
       return;
@@ -246,6 +276,7 @@ export class App {
   }
 
   _cast(origin, direction, distance) {
+    this._markActive();
     const element = this.element;
     this.abilities.cast(origin, direction, distance, element);
     this.cooldowns.set(element, Math.max(0, settings[element].cooldown));
@@ -307,6 +338,11 @@ export class App {
     this.loading.setProgress(1, 'Ready');
     this.loading.hide();
     this.hud.reveal();
+
+    const unreadable = this.editor.unreadablePresets;
+    if (unreadable) {
+      this.hud.showToast(`${unreadable} saved preset(s) could not be read — left untouched in storage`, 4000);
+    }
 
     this.start();
   }
@@ -412,6 +448,8 @@ export class App {
     }
 
     // Same order as `frame()`, so every pass sees what it will see in flight.
+    // Nothing here is throttled or skipped: the warm-up has to touch every
+    // program the pipeline can ask for, which is the whole point of it.
     this.renderer.gl.shadowMap.needsUpdate = true;
     this.contactShadows.render(this.scene);
     this.post.sync(this.elapsed, this.flash);
@@ -421,27 +459,93 @@ export class App {
     for (const node of culled) node.frustumCulled = true;
   }
 
-  start() {
-    this.time.reset();
-    const loop = () => {
-      this._raf = requestAnimationFrame(loop);
-      this.frame();
-    };
-    this._raf = requestAnimationFrame(loop);
+  /* ------------------------------------------------------------------ */
+  /* Frame budget                                                        */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Is anything on screen that samples the depth buffer or writes a distortion
+   * offset? Ability meshes, particles and burst shells are the only three, so
+   * when all of them are gone both auxiliary passes have nothing to feed and
+   * `PostProcessing#render` skips them.
+   */
+  get _liveEffects() {
+    return (
+      this.abilities.active.length > 0 ||
+      this.particles.live ||
+      this.bursts.active.length > 0
+    );
   }
 
-  stop() {
+  /**
+   * Keep the loop at `maxFps` for the next `seconds`.
+   *
+   * An empty stage is not a still image — the character keeps playing its idle
+   * loop — so the frame cannot simply be skipped. It can be *paid for less
+   * often*: nothing about a breathing idle needs sixty frames a second, and
+   * halving the rate halves every pass in the pipeline at once. Input and live
+   * effects push it straight back up, and the grace period covers the tail
+   * (camera easing, shake, flash) without every subsystem having to report in.
+   */
+  _markActive(seconds = ACTIVE_GRACE) {
+    this._activeUntil = Math.max(this._activeUntil, performance.now() + seconds * 1000);
+  }
+
+  /** Frames per second the loop should be running at right now. */
+  _targetFps() {
+    const perf = settings.performance;
+    const max = Math.max(1, perf.maxFps);
+    if (performance.now() < this._activeUntil) return max;
+    return Math.min(max, Math.max(1, perf.idleFps));
+  }
+
+  start() {
+    if (this._running) return;
+    this._running = true;
+    // The reveal, the first camera settle and any early input deserve the full
+    // rate whether or not anything has been cast yet.
+    this._markActive(3);
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
+    this._onVisibilityChange();
+  }
+
+  _onVisibilityChange = () => {
     cancelAnimationFrame(this._raf);
+    this._raf = 0;
+    this.time.reset();
+    this.performancePanel.resetWindow();
+    this._lastFrame = null;
+    if (this._running && !document.hidden) this._raf = requestAnimationFrame(this._loop);
+  };
+
+  _loop = (timestamp) => {
+    if (!this._running || document.hidden) return;
+    this._raf = requestAnimationFrame(this._loop);
+    const interval = 1000 / this._targetFps();
+    const elapsed = this._lastFrame === null ? interval : timestamp - this._lastFrame;
+    // Allow a small rAF rounding error without accidentally halving the rate.
+    if (elapsed < interval - 0.5) return;
+    this._lastFrame = timestamp - (elapsed >= interval ? elapsed % interval : 0);
+    this.frame();
+  };
+
+  stop() {
+    this._running = false;
+    cancelAnimationFrame(this._raf);
+    this._raf = 0;
+    document.removeEventListener('visibilitychange', this._onVisibilityChange);
   }
 
   /* ------------------------------------------------------------------ */
 
   frame() {
+    const cpuStart = performance.now();
     const gl = this.renderer.gl;
     gl.info.reset();
 
-    const raw = this.time.tick();
-    const dt = this.paused ? 0 : raw * settings.global.timeScale;
+    const simulationDelta = this.time.tick();
+    const raw = this.time.rawDelta;
+    const dt = this.paused ? 0 : simulationDelta * settings.global.timeScale;
     this.elapsed += dt;
 
     /* ---- shared uniforms ---- */
@@ -481,7 +585,7 @@ export class App {
     // out of it.
     this.dummies.update(dt, this.character.position);
     this.dummies.applyHits(this.abilities.active);
-    this.particles.flush();
+    this.particles.flush(this.elapsed);
     this.decals.update(dt);
     this.bursts.update(dt);
     this.lights.update(dt);
@@ -494,26 +598,61 @@ export class App {
     this.flash.update(raw);
     this.rig.update(raw);
 
+    /* ---- frame budget ---- */
+    // Anything still running keeps the loop at full rate; `_markActive` is
+    // called every frame it is true, so the grace period always counts from
+    // the last busy frame rather than from the cast that started it.
+    const live = this._liveEffects;
+    if (live || this.decals.active.length > 0 || this.aim.isArmed) this._markActive();
+
+    // Only frames the loop was actually trying to deliver at `maxFps` carry a
+    // usable signal; the scaler ignores the rest.
+    const active = this.paused || performance.now() < this._activeUntil;
+
+    this.performancePanel.beginGpu();
     this.contactShadows.setPosition(this.character.position.x, this.character.position.z);
-    this.contactShadows.render(this.scene);
+    this.contactShadows.render(this.scene, raw);
 
     /* ---- render ---- */
-    // Exactly one cascade shadow update per frame (see Renderer).
-    gl.shadowMap.needsUpdate = true;
+    // At most one shadow update per frame (see Renderer), and by default only
+    // every other one: rebuilding a 2048² map from the whole world is the most
+    // expensive single thing in the frame, and re-running it for a character
+    // mid-idle-loop buys nothing you can see through the PCF blur.
+    if (this._shadowCadence.due(raw, settings.performance.shadowFps)) {
+      gl.shadowMap.needsUpdate = true;
+    }
+
     this.post.sync(this.elapsed, this.flash);
-    this.post.render();
+    this.post.render(live, active);
+    this.performancePanel.endGpu();
 
     /* ---- readouts ---- */
     for (const element of ELEMENTS) {
       this.hud.setCooldown(element, this.cooldowns.get(element) ?? 0, settings[element].cooldown);
     }
     this.hud.setArmed(this.aim.isArmed);
-    this.hud.update(raw, () => ({
-      particles: this.particles.countLive(this.elapsed),
-      calls: gl.info.render.calls,
-      spikes: this.abilities.active.reduce((total, ability) => total + ability.instanceCount, 0),
-      abilities: this.abilities.active.length
-    }));
+    const cpuMs = performance.now() - cpuStart;
+    const gpu = this.performancePanel.gpu;
+    // Only use a newly completed GPU query; old timings must not sustain an overrun.
+    this._lastWorkMs = cpuMs;
+    this._lastGpuMs = gpu.completed !== this._lastGpuCompleted ? gpu.latest : null;
+    this._lastGpuCompleted = gpu.completed;
+    this.performancePanel.record(raw, cpuMs, {
+      targetFps: this._targetFps(),
+      mode: this.paused ? 'Paused' : active ? 'Active' : 'Idle',
+      scale: this.renderer.resolutionScale,
+      lightCount: this.lights.lights.length
+    });
+
+    // Decide the next frame's scale only after reporting the canvas just rendered.
+    if (settings.performance.dynamicResolution) {
+      if (this._resolution.sample(raw, this._targetFps(), active, this._lastWorkMs, this._lastGpuMs)) {
+        this.renderer.resolutionScale = this._resolution.scale;
+      }
+    } else if (this.renderer.resolutionScale !== 1) {
+      this._resolution.reset();
+      this.renderer.resolutionScale = 1;
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -534,6 +673,7 @@ export class App {
     this.contactShadows.dispose();
     this.post.dispose();
     this.environment.dispose();
+    this.performancePanel.dispose();
     this.editor.dispose();
     this.rig.dispose();
     this.renderer.dispose();

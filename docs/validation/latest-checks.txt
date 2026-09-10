@@ -1,0 +1,52 @@
+Captured at: 2026-09-09T17:21:40.319834+00:00
+Code commit: e778e1873ffd2e5f7af9e55b9c71457bc7aafe82
+
+$ npm test
+
+> casting-abilities@1.0.0 test
+> node --test tests/*.test.js
+
+✔ 15 FPS preserves one second of simulation and wall time (0.672083ms)
+✔ particle visibility includes the 50 ms minimum lifetime (0.82925ms)
+✔ hidden particles can reappear after live lifetime editing (0.176916ms)
+✔ shadow cadence preserves 30 refreshes/second at different display rates (0.364042ms)
+✔ reject prototype pollution at every depth without partial mutation (3.470584ms)
+✔ reject types, non-finite numbers, unknown keys, oversized values, arrays and invalid strings (2.21425ms)
+✔ snapshots, old imports, saved collections and resets preserve device preferences (11.269292ms)
+✔ collection imports are atomic and names cannot address inherited properties (7.826291ms)
+✔ profiles persist independently and corrupt device settings are ignored (1.023333ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 77.302625
+
+
+Exit code: 0
+
+$ npm run build
+
+> casting-abilities@1.0.0 build
+> vite build
+
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 132 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     1.48 kB │ gzip:   0.64 kB
+dist/assets/index-dOb6oGZn.css     17.03 kB │ gzip:   4.32 kB
+dist/assets/index-Pnh3hOek.js   1,783.70 kB │ gzip: 487.69 kB │ map: 6,337.59 kB
+
+✓ built in 207ms
+
+
+Exit code: 0
+
+$ git diff --check
+
+
+Exit code: 0

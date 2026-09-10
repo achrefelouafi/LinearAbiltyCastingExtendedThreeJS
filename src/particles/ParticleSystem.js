@@ -165,6 +165,13 @@ export class ParticleSystem {
 
     this._ranges = [];
     this._dirty = false;
+
+    // Conservative bounds let empty pools skip draws without scanning slots.
+    // Retain them until reset: increasing uLifeScale can reveal old particles.
+    // Keep the mesh visible initially so boot warm-up compiles its shaders;
+    // the first engine update hides unused systems.
+    this._lastSpawn = -Infinity;
+    this._maxLife = 0;
   }
 
   get object3D() {
@@ -223,6 +230,10 @@ export class ParticleSystem {
 
     const d = this.data;
 
+    // Upper bound on when this batch can still be on screen (see the
+    // liveness note in the constructor).
+    this._lastSpawn = Math.max(this._lastSpawn, time);
+
     for (let n = 0; n < count; n++) {
       const i = this.cursor;
       this.cursor = (this.cursor + 1) % this.capacity;
@@ -275,6 +286,7 @@ export class ParticleSystem {
       // --- scalars --------------------------------------------------
       d.spawn[i] = time;
       d.life[i] = Math.max(0.05, life * (1 + (Math.random() - 0.5) * 2 * lifeVariance));
+      this._maxLife = Math.max(this._maxLife, d.life[i]);
       d.size[i] = Math.max(0.001, size * (1 + (Math.random() - 0.5) * 2 * sizeVariance));
       d.seed[i] = Math.random();
       d.spin[i] = (Math.random() - 0.5) * 2 * spin;
@@ -291,6 +303,38 @@ export class ParticleSystem {
       }
     }
 
+  }
+
+  /**
+   * Could any particle still be on screen at `time`?
+   *
+   * O(1), and deliberately pessimistic — see the constructor.
+   *
+   * @param {number} time simulation time, the same clock `emit` is given
+   */
+  hasLive(time) {
+    return time <= this._lastSpawn + this._maxLife * this.uniforms.uLifeScale.value;
+  }
+
+  /**
+   * Hide the system while every one of its particles is dead.
+   *
+   * Called once a frame by the engine, after the abilities have emitted, so a
+   * system that spawned this frame is visible on the frame it spawned.
+   *
+   * @param {number} time     simulation time, the clock `emit` is given
+   * @param {boolean} emitted  whether this frame spawned into the system
+   * @returns {boolean} whether the system is still live
+   */
+  sync(time, emitted) {
+    // Anchor a fresh batch to the frame clock rather than to whatever stamp
+    // the caller put on it: emitters read the time from a shared uniform that
+    // may be a frame stale, and being early here would blink the system out.
+    if (emitted) this._lastSpawn = Math.max(this._lastSpawn, time);
+
+    const live = this.hasLive(time);
+    this.mesh.visible = live;
+    return live;
   }
 
   /**
@@ -323,9 +367,13 @@ export class ParticleSystem {
     }
   }
 
-  /** Upload only the slots that changed this frame. */
+  /**
+   * Upload only the slots that changed this frame.
+   *
+   * @returns {boolean} whether anything was emitted since the last flush
+   */
   flush() {
-    if (!this._dirty) return;
+    if (!this._dirty) return false;
     for (const [key, itemSize] of Object.entries(FLOATS)) {
       const attribute = this.attributes[key];
       attribute.needsUpdate = true;
@@ -336,6 +384,7 @@ export class ParticleSystem {
     }
     this._ranges.length = 0;
     this._dirty = false;
+    return true;
   }
 
   /** Convenience for setting the 4-stop lifetime gradient from hex strings. */
@@ -354,6 +403,9 @@ export class ParticleSystem {
     this._ranges.length = 0;
     this._dirty = false;
     this.cursor = 0;
+    this._lastSpawn = -Infinity;
+    this._maxLife = 0;
+    this.mesh.visible = false;
   }
 
   dispose() {

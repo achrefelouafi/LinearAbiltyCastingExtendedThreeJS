@@ -1,3 +1,5 @@
+import { validatePatch, mergeValidated } from './SettingsValidation.js';
+
 /**
  * settings.js — the single source of truth for every tweakable value in the sandbox.
  *
@@ -40,6 +42,48 @@
 export const CAST_ANIMATIONS = ['cast1', 'cast2', 'cast3'];
 
 export const settings = {
+  /* ------------------------------------------------------------------ */
+  /* Render budget                                                       */
+  /*                                                                     */
+  /* Nothing here changes the look of an ability — these are the knobs    */
+  /* that decide how much work the frame is allowed to cost. `idleFps`    */
+  /* and `shadowFps` are the two that matter for sustained power draw:    */
+  /* an empty stage still has to redraw the character's idle loop, but    */
+  /* it does not have to do it sixty times a second, and the sun's        */
+  /* shadow map does not have to be rebuilt from scratch every frame.     */
+  /* ------------------------------------------------------------------ */
+  performance: {
+    maxFps: 60,
+    /** Frame cap while nothing is cast, armed or still settling. */
+    idleFps: 30,
+    pixelRatio: 1.25,
+    shadowResolution: 2048,
+    /** Refresh rate of the sun shadow map *and* the contact shadow. */
+    shadowFps: 30,
+    idleBloom: true,
+    /**
+     * Fraction of the frame size the bloom chain runs at.
+     *
+     * Bloom is a dozen full-screen HDR passes and, measured on this scene, the
+     * single largest item in the GPU frame — 2.3 of 5.8 ms at Economy
+     * settings. Halving its resolution recovers most of that during casts as
+     * well as at rest, which switching it off at idle cannot do, and without
+     * the visible pop that switching brings. The result is blurred by design,
+     * so the lost detail is not detail anyone can see.
+     */
+    bloomScale: 1,
+    /** Let sustained frame-time overruns walk the render scale down. */
+    dynamicResolution: false,
+    /**
+     * Dynamic point lights kept in the scene.
+     *
+     * Read once at boot: the count is part of the lighting program's cache
+     * key, so changing it mid-session recompiles every material in the scene.
+     * Parked lights still cost a per-fragment evaluation, which is why the
+     * low-power profile carries fewer of them.
+     */
+    lightCount: 6
+  },
   /* ------------------------------------------------------------------ */
   /* Global multipliers                                                  */
   /* ------------------------------------------------------------------ */
@@ -4472,24 +4516,21 @@ export const DEFAULT_SETTINGS = structuredClone(settings);
  * Deep-merge a plain object into `settings` in place.
  * Existing object identity is preserved so every live binding keeps working.
  */
-export function applySettings(patch, target = settings) {
-  for (const key of Object.keys(patch)) {
-    const value = patch[key];
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (target[key] && typeof target[key] === 'object') applySettings(value, target[key]);
-    } else if (key in target) {
-      target[key] = value;
-    }
-  }
-  return target;
+export function validateSettings(patch) {
+  return validatePatch(patch, DEFAULT_SETTINGS, settings, { omitPerformance: true });
 }
 
-/** Restore every value to the shipped defaults (in place). */
+export function applySettings(patch) {
+  return mergeValidated(validateSettings(patch), settings);
+}
+
+/** Reset artistic settings while preserving this device's graphics choices. */
 export function resetSettings() {
-  applySettings(structuredClone(DEFAULT_SETTINGS));
+  applySettings(DEFAULT_SETTINGS);
 }
 
-/** Serialisable clone of the current state. */
+/** Artistic preset: device performance preferences are stored separately. */
 export function snapshotSettings() {
-  return structuredClone(settings);
+  const { performance, ...artistic } = settings;
+  return structuredClone(artistic);
 }

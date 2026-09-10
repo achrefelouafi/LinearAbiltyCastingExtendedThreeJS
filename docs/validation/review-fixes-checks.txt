@@ -1,0 +1,217 @@
+Captured at: 2026-09-09T18:37:28.809716+00:00
+Scope: working tree included in this commit; review fixes and adaptive-rendering changes.
+Node: v25.6.1
+Warnings in negative preset tests are expected (invalid data and simulated storage quota failures).
+
+$ npm test
+
+> casting-abilities@1.0.0 test
+> node --test tests/*.test.js
+
+✔ 15 FPS preserves one second of simulation and wall time (0.676417ms)
+✔ particle visibility includes the 50 ms minimum lifetime (0.590375ms)
+✔ hidden particles can reappear after live lifetime editing (0.147042ms)
+✔ shadow cadence preserves 30 refreshes/second at different display rates (0.771542ms)
+✔ adaptive resolution steps down under sustained overrun and back up when it clears (0.448625ms)
+✔ adaptive resolution ignores idle frames and a display slower than the cap (0.086375ms)
+[performance] ignoring stored preferences Error: Invalid performance setting: maxFps
+    at validatePerformance (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/PerformancePreferences.js:43:78)
+    at loadPerformancePreferences (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/PerformancePreferences.js:74:67)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:79:3)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[performance] ignoring stored preferences Error: Invalid performance setting: maxFps
+    at validatePerformance (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/PerformancePreferences.js:43:78)
+    at loadPerformancePreferences (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/PerformancePreferences.js:74:67)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:96:5)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] preset "Stale" is not loadable and was left in storage Error: Unknown setting: global.knobRemovedInALaterBuild
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:35:48)
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:40:23)
+    at validatePatch (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:61:10)
+    at validateSettings (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/settings.js:4520:10)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:88:24)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:111:19)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] unreadable preset collection SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:71:19)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:124:19)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] preset "Look" is not loadable and was left in storage Error: Unknown setting: global.removedKnob
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:35:48)
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:40:23)
+    at validatePatch (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:61:10)
+    at validateSettings (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/settings.js:4520:10)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:88:24)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:136:21)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] preset "Look" is not loadable and was left in storage Error: Unknown setting: global.removedKnob
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:35:48)
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:40:23)
+    at validatePatch (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:61:10)
+    at validateSettings (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/settings.js:4520:10)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:88:24)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:136:21)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] preset "Look copy" is not loadable and was left in storage Error: Unknown setting: global.removedKnob
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:35:48)
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:40:23)
+    at validatePatch (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:61:10)
+    at validateSettings (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/settings.js:4520:10)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:88:24)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:151:19)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] unreadable preset collection SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:71:19)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:166:19)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] backup failed; original presets remain untouched Error: QuotaExceededError
+    at localStorage.setItem (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:163:53)
+    at PresetManager._backupUnreadable (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:105:20)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:79:12)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:166:19)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] backup failed; original presets remain untouched Error: QuotaExceededError
+    at localStorage.setItem (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:163:53)
+    at PresetManager._backupUnreadable (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:105:20)
+    at PresetManager._write (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:116:15)
+    at PresetManager.save (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:142:15)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:167:24)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] backup failed; original presets remain untouched Error: QuotaExceededError
+    at localStorage.setItem (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:163:53)
+    at PresetManager._backupUnreadable (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:105:20)
+    at PresetManager._write (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:116:15)
+    at PresetManager.importJSON (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:240:15)
+    at file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:168:31
+    at getActual (node:assert:586:5)
+    at strict.throws (node:assert:734:24)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:168:10)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+[PresetManager] preset "Stale" is not loadable and was left in storage Error: Unknown setting: global.removedKnob
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:35:48)
+    at visit (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:40:23)
+    at validatePatch (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/SettingsValidation.js:61:10)
+    at validateSettings (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/config/settings.js:4520:10)
+    at PresetManager._read (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:88:24)
+    at new PresetManager (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:41:25)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:183:19)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] could not persist presets Error: QuotaExceededError
+    at localStorage.setItem (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:184:40)
+    at PresetManager._write (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:120:20)
+    at PresetManager.save (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:142:15)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:185:24)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] could not persist presets Error: QuotaExceededError
+    at localStorage.setItem (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:184:40)
+    at PresetManager._write (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:120:20)
+    at PresetManager.remove (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:169:17)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:186:24)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] could not persist presets Error: QuotaExceededError
+    at localStorage.setItem (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:184:40)
+    at PresetManager._write (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:120:20)
+    at PresetManager.duplicate (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:161:15)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:187:24)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[PresetManager] could not persist presets Error: QuotaExceededError
+    at localStorage.setItem (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:184:40)
+    at PresetManager._write (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:120:20)
+    at PresetManager.importJSON (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/src/ui/PresetManager.js:240:15)
+    at file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:188:31
+    at getActual (node:assert:586:5)
+    at strict.throws (node:assert:734:24)
+    at TestContext.<anonymous> (file:///Users/velrino/Documents/Projects/3js/LinearAbiltyCastingExtendedThreeJS/tests/settings.test.js:188:10)
+    at Test.runInAsyncScope (node:async_hooks:226:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+✔ reject prototype pollution at every depth without partial mutation (3.695709ms)
+✔ reject types, non-finite numbers, unknown keys, oversized values, arrays and invalid strings (1.812917ms)
+✔ snapshots, old imports, saved collections and resets preserve device preferences (11.131416ms)
+✔ collection imports are atomic and names cannot address inherited properties (7.833ms)
+✔ profiles persist independently and corrupt device settings are ignored (1.548959ms)
+✔ a device with no stored preference is guessed at, and a stored one is never overridden (1.112833ms)
+✔ one unreadable preset does not take the rest of the collection with it (9.338167ms)
+✔ a wholesale unreadable collection is moved aside, not overwritten (2.232125ms)
+✔ save replaces a quarantined preset permanently (1.31025ms)
+✔ import replaces a quarantined preset permanently (3.661083ms)
+✔ duplicates do not overwrite quarantined names (4.010083ms)
+✔ failed backup blocks writes until the original can be preserved (4.282708ms)
+✔ failed persistence leaves saved presets and quarantine unchanged (6.461125ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 113.406042
+
+Exit code: 0
+
+$ npm run build
+
+> casting-abilities@1.0.0 build
+> vite build
+
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 133 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     1.48 kB │ gzip:   0.64 kB
+dist/assets/index-dOb6oGZn.css     17.03 kB │ gzip:   4.32 kB
+dist/assets/index-Bg410Ve-.js   1,788.25 kB │ gzip: 489.02 kB │ map: 6,356.66 kB
+
+✓ built in 220ms
+
+Exit code: 0
+
+$ git diff --check
+
+Exit code: 0
+
+Browser: Chrome, Vite dev server at 127.0.0.1:4181, isolated context.
+await (await import('/tests/browser/renderer-initialization.js')).checkRendererInitialization()
+{"initial":{"pixelRatio":1.25,"width":1800,"height":891},"adaptiveRatio":0.75,"passed":true}
+Console errors: none.
+Scope: renderer initialization and resizing; no new full ability lifecycle or power/temperature measurement.
+Test page and dev server closed after validation.

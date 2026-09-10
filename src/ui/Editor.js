@@ -1,3 +1,5 @@
+import { registerSettingRange } from '../config/SettingsValidation.js';
+import { performanceProfile, setPerformanceProfile, savePerformancePreferences } from '../config/PerformancePreferences.js';
 import GUI from 'lil-gui';
 import { settings, CAST_ANIMATIONS } from '../config/settings.js';
 import { PresetManager } from './PresetManager.js';
@@ -23,14 +25,25 @@ export class Editor {
    */
   constructor(hooks = {}) {
     this.hooks = hooks;
-    this.presets = new PresetManager();
 
     this.gui = new GUI({ title: 'VFX Editor', width: 330 });
     this.gui.domElement.style.setProperty('--title-height', '30px');
 
-    this._presetState = { name: 'My preset', selected: this.presets.names[0] ?? '' };
-
-    this._buildPresets();
+    /*
+     * Folder order here is not the order they appear in.
+     *
+     * `Editor.range` is what teaches `SettingsValidation` the bounds a slider
+     * was declared with, and `PresetManager` validates the stored collection
+     * against exactly those bounds the moment it is constructed. Reading the
+     * presets first — as this used to — meant the registry was still empty at
+     * boot and every number fell back to the blanket ±10,000, while a later
+     * import was checked against the real ranges: the same file could load on
+     * startup and be rejected from the import button.
+     *
+     * So the sliders are declared first and the Presets folder is moved back
+     * to the top of the panel afterwards, where it belongs.
+     */
+    this._buildPerformance();
     this._buildGlobal();
     this._buildAim();
     this._buildZone();
@@ -50,6 +63,11 @@ export class Editor {
     this._buildCharacter();
     this._buildDummies();
 
+    this.presets = new PresetManager();
+    this._presetState = { name: 'My preset', selected: this.presets.names[0] ?? '' };
+    this._buildPresets();
+    this.gui.$children.prepend(this.presetFolder.domElement);
+
     // Everything starts collapsed, top-level folders included. There are enough
     // controls here that any folder left open pushes the rest off the screen,
     // so the panel opens as a list of sections and the user picks one.
@@ -61,6 +79,7 @@ export class Editor {
   /* ------------------------------------------------------------------ */
 
   static range(folder, object, key, min, max, step, label) {
+    registerSettingRange(object, key, min, max);
     return folder.add(object, key, min, max, step).name(label ?? key);
   }
 
@@ -93,7 +112,17 @@ export class Editor {
     return group;
   }
 
+  /**
+   * Stored presets this build could not read, for a caller that has somewhere
+   * visible to say so. Reporting it from the constructor would put the message
+   * behind the loading veil, where nobody would ever see it.
+   */
+  get unreadablePresets() {
+    return this.presets.quarantined;
+  }
+
   refresh() {
+    if (this._performanceState) this._performanceState.profile = performanceProfile();
     this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
   }
 
@@ -105,6 +134,30 @@ export class Editor {
   /* ------------------------------------------------------------------ */
   /* folders                                                             */
   /* ------------------------------------------------------------------ */
+
+  _buildPerformance() {
+    const folder = this.gui.addFolder('Performance');
+    this._performanceState = { profile: performanceProfile() };
+    folder.add(this._performanceState, 'profile', ['Balanced', 'Economy', 'Custom']).name('Quality mode').onChange(name => {
+      setPerformanceProfile(name);
+      this.refresh();
+    });
+    folder.onChange(() => { savePerformancePreferences(); this.refresh(); });
+    folder.add(settings.performance, 'maxFps', { '30 FPS': 30, '60 FPS': 60, '120 FPS': 120 }).name('Frame limit');
+    folder
+      .add(settings.performance, 'idleFps', { '15 FPS': 15, '30 FPS': 30, 'Off (no idle drop)': 240 })
+      .name('Idle frame limit');
+    Editor.range(folder, settings.performance, 'pixelRatio', 0.5, 2, 0.25, 'Pixel ratio');
+    folder.add(settings.performance, 'shadowResolution', { Low: 1024, Balanced: 2048, High: 4096 }).name('Shadow resolution');
+    folder
+      .add(settings.performance, 'shadowFps', { '15 FPS': 15, '30 FPS': 30, 'Every frame': 240 })
+      .name('Shadow refresh');
+    folder
+      .add(settings.performance, 'bloomScale', { Full: 1, 'Three quarters': 0.75, Half: 0.5 })
+      .name('Bloom resolution');
+    folder.add(settings.performance, 'idleBloom').name('Bloom while idle');
+    folder.add(settings.performance, 'dynamicResolution').name('Adapt to frame rate');
+  }
 
   _buildPresets() {
     const folder = this.gui.addFolder('Presets');
@@ -128,7 +181,10 @@ export class Editor {
       .add(
         {
           save: () => {
-            this.presets.save(state.name);
+            if (!this.presets.save(state.name)) {
+              this.hooks.onToast?.('Could not save preset. Check the name, preset limit and available storage.');
+              return;
+            }
             state.selected = state.name;
             refreshOptions();
             this.hooks.onToast?.(`Saved preset "${state.name}"`);
@@ -161,6 +217,8 @@ export class Editor {
               state.selected = copy;
               refreshOptions();
               this.hooks.onToast?.(`Duplicated to "${copy}"`);
+            } else {
+              this.hooks.onToast?.('Could not duplicate preset. Check the selection, preset limit and available storage.');
             }
           }
         },
@@ -175,6 +233,8 @@ export class Editor {
             if (this.presets.remove(state.selected)) {
               refreshOptions();
               this.hooks.onToast?.('Preset deleted');
+            } else {
+              this.hooks.onToast?.('Could not delete preset. Check the selection and available storage.');
             }
           }
         },
@@ -183,6 +243,9 @@ export class Editor {
       .name('Delete');
 
     folder.add({ exportOne: () => this.presets.exportJSON() }, 'exportOne').name('Export current (JSON)');
+    folder.add({ recover: () => {
+      if (!this.presets.exportUnreadable()) this.hooks.onToast?.('No unreadable backup is available.');
+    } }, 'recover').name('Download unreadable backup');
     folder.add({ exportAll: () => this.presets.exportAll() }, 'exportAll').name('Export all presets');
 
     folder
@@ -193,11 +256,11 @@ export class Editor {
             refreshOptions();
             this.refresh();
             this.hooks.onToast?.(
-              result.applied
+              result.error ?? (result.applied
                 ? 'Settings imported'
                 : result.imported.length
                   ? `Imported ${result.imported.length} preset(s)`
-                  : 'Nothing imported'
+                  : 'Nothing imported')
             );
           }
         },

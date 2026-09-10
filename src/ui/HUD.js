@@ -17,9 +17,6 @@ export class HUD {
     this.root = root;
     this.onAbility = null;
     this._toastTimer = 0;
-    this._statsAccumulator = 0;
-    this._frames = 0;
-    this._fps = 0;
     /** Last sweep ratio pushed to the DOM, per element. */
     this._cooldownShown = new Map();
     this._armedShown = null;
@@ -28,13 +25,6 @@ export class HUD {
       <div class="hud__panel hud__title">
         Elemental Sandbox
         <span data-blurb>Press Q, E, R, F, V, X, B, Z, N or K, aim, click to cast.</span>
-      </div>
-
-      <div class="hud__panel hud__stats">
-        <div>FPS <b data-stat="fps">—</b></div>
-        <div>Particles <b data-stat="particles">0</b></div>
-        <div>Instances <b data-stat="spikes">0</b></div>
-        <div>Draw calls <b data-stat="calls">0</b></div>
       </div>
 
       <div class="hud__panel hud__help">
@@ -89,12 +79,6 @@ export class HUD {
       });
     }
 
-    this.stats = {
-      fps: root.querySelector('[data-stat="fps"]'),
-      particles: root.querySelector('[data-stat="particles"]'),
-      spikes: root.querySelector('[data-stat="spikes"]'),
-      calls: root.querySelector('[data-stat="calls"]')
-    };
     this.help = root.querySelector('.hud__help');
     this.toast = root.querySelector('[data-toast]');
     this.pausedBadge = root.querySelector('[data-paused]');
@@ -158,27 +142,7 @@ export class HUD {
     this._toastTimer = setTimeout(() => this.toast.classList.remove('is-visible'), duration);
   }
 
-  /**
-   * @param {number} dt
-   * @param {() => {particles:number, spikes:number, calls:number}} collect
-   *   Called only when the readout actually refreshes, so gathering the numbers
-   *   (which means walking the particle pools) stays off the hot path.
-   */
-  update(dt, collect) {
-    this._frames++;
-    this._statsAccumulator += dt;
-    if (this._statsAccumulator < 0.4) return;
 
-    this._fps = Math.round(this._frames / this._statsAccumulator);
-    this._frames = 0;
-    this._statsAccumulator = 0;
-
-    const info = collect();
-    this.stats.fps.textContent = this._fps;
-    this.stats.particles.textContent = info.particles;
-    this.stats.spikes.textContent = info.spikes;
-    this.stats.calls.textContent = info.calls;
-  }
 }
 
 /** Boot screen helper. */

@@ -31,7 +31,7 @@ const SHADOW_EXTENT = 26;
  *
  * Sun shadows use one directional light whose orthographic shadow camera is
  * re-centred on the character every frame and fitted tightly to the play area.
- * At 4096² over a 52 m box that is ~1.3 cm per texel — sharper than a three
+ * At the default 2048² over a 52 m box that is ~2.5 cm per texel — sharper than a three
  * cascade split would give here, without the cost or the complexity.
  *
  * (An earlier revision used the CSM addon. It replaces three's
@@ -77,7 +77,7 @@ export class Environment {
       settings.environment.sunIntensity
     );
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(4096, 4096);
+    this.sun.shadow.mapSize.set(settings.performance.shadowResolution, settings.performance.shadowResolution);
     this.sun.shadow.bias = settings.environment.shadowBias;
     this.sun.shadow.normalBias = 0.035;
     this.sun.shadow.radius = settings.environment.shadowRadius;
@@ -178,6 +178,14 @@ export class Environment {
   }
 
   update() {
+    const shadow = this.sun.shadow;
+    const resolution = settings.performance.shadowResolution;
+    if (shadow.mapSize.x !== resolution) {
+      shadow.mapSize.set(resolution, resolution);
+      shadow.map?.dispose();
+      shadow.map = null;
+      this.renderer.gl.shadowMap.needsUpdate = true;
+    }
     const env = settings.environment;
 
     this._computeLightDirection(_sunDir, env.sunAzimuth, env.sunElevation);

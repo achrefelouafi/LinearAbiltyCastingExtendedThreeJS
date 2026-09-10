@@ -18,6 +18,25 @@ import { frame } from '../core/FrameUniforms.js';
 import { settings } from '../config/settings.js';
 
 const DISTORTION_CLEAR = new Color(0.5, 0.5, 0.0);
+const DISTORTION_MASK = 1 << LAYER.DISTORTION;
+
+/**
+ * Is there a visible mesh on the distortion layer anywhere under `node`?
+ *
+ * `Object3D#traverseVisible` would do this in one line but cannot stop at the
+ * first hit, and the answer here is a boolean: the pooled abilities put a few
+ * hundred nodes in the scene and this runs every frame.
+ */
+function hasVisibleDistortion(node) {
+  if (node.visible === false) return false;
+  if (node.isMesh === true && (node.layers.mask & DISTORTION_MASK) !== 0) return true;
+
+  const children = node.children;
+  for (let i = 0; i < children.length; i++) {
+    if (hasVisibleDistortion(children[i])) return true;
+  }
+  return false;
+}
 
 /**
  * The full render pipeline.
@@ -29,7 +48,16 @@ const DISTORTION_CLEAR = new Color(0.5, 0.5, 0.0);
  *   3. composer       — scene → refraction → bloom → tone map → grade
  *
  * Passes 1 and 2 run at half resolution: both are only ever read as smooth,
- * low-frequency data, so full resolution would be wasted fill rate.
+ * low-frequency data, so full resolution would be wasted fill rate. They are
+ * also both *conditional* — see `render`.
+ *
+ * One subtlety ties the three together: `WebGLShadowMap` picks its casters by
+ * testing them against the layers of the camera the frame is being *rendered*
+ * with, not against the shadow camera's. Passes 1 and 2 pin the camera to a
+ * single layer, so whichever of them happens to run first would decide what
+ * ends up in the sun's shadow map — dropping every `LAYER.SHAPED` caster in
+ * the depth prepass' case. Both therefore hold the flag back and let the main
+ * pass, the only one that still sees the whole scene, build the map.
  */
 export class PostProcessing {
   constructor(renderer, scene, camera) {
@@ -77,6 +105,14 @@ export class PostProcessing {
       settings.post.bloomThreshold
     );
     this.composer.addPass(this.bloomPass);
+    // Bloom is sized in CSS pixels rather than device pixels, and scaled again
+    // by the render budget. Its own composite still writes back into the
+    // composer's full-resolution buffer, so a smaller chain costs detail the
+    // blur was going to destroy anyway.
+    this._width = size.x;
+    this._height = size.y;
+    this._bloomScale = null;
+    this._applyBloomSize();
 
     // Tone mapping + sRGB conversion happen here; everything before is linear HDR.
     this.outputPass = new OutputPass();
@@ -88,6 +124,16 @@ export class PostProcessing {
     this.composer.addPass(this.gradePass);
 
     this._clearColor = new Color();
+  }
+
+  /** Resize the bloom chain to `settings.performance.bloomScale`. */
+  _applyBloomSize() {
+    const scale = Math.min(1, Math.max(0.25, settings.performance.bloomScale));
+    this._bloomScale = settings.performance.bloomScale;
+    this.bloomPass.setSize(
+      Math.max(2, Math.round(this._width * scale)),
+      Math.max(2, Math.round(this._height * scale))
+    );
   }
 
   /** Opaque depth for soft particles. */
@@ -102,6 +148,10 @@ export class PostProcessing {
     gl.getClearColor(this._clearColor);
     const previousAlpha = gl.getClearAlpha();
 
+    // Not this pass' job (see the class comment).
+    const shadowsPending = gl.shadowMap.needsUpdate;
+    gl.shadowMap.needsUpdate = false;
+
     scene.background = null;
     scene.overrideMaterial = this.depthMaterial;
     camera.layers.set(LAYER.WORLD);
@@ -115,6 +165,7 @@ export class PostProcessing {
     scene.overrideMaterial = previousOverride;
     camera.layers.mask = mask;
     gl.setClearColor(this._clearColor, previousAlpha);
+    gl.shadowMap.needsUpdate = shadowsPending;
   }
 
   /** Screen-space refraction offsets. */
@@ -128,6 +179,10 @@ export class PostProcessing {
     gl.getClearColor(this._clearColor);
     const previousAlpha = gl.getClearAlpha();
 
+    // Not this pass' job either (see the class comment).
+    const shadowsPending = gl.shadowMap.needsUpdate;
+    gl.shadowMap.needsUpdate = false;
+
     scene.background = null;
     camera.layers.set(LAYER.DISTORTION);
 
@@ -140,6 +195,7 @@ export class PostProcessing {
     camera.layers.mask = mask;
     gl.setClearColor(this._clearColor, previousAlpha);
     gl.setRenderTarget(null);
+    gl.shadowMap.needsUpdate = shadowsPending;
   }
 
   /** Push editor values into the passes. Called once per frame. */
@@ -149,7 +205,6 @@ export class PostProcessing {
     this.bloomPass.strength = post.bloomStrength;
     this.bloomPass.radius = post.bloomRadius;
     this.bloomPass.threshold = post.bloomThreshold;
-    this.bloomPass.enabled = post.enabled && post.bloomStrength > 0.001;
 
     const u = this.gradePass.uniforms;
     u.uTime.value = elapsed;
@@ -164,13 +219,43 @@ export class PostProcessing {
     u.uFlashStrength.value = flash.strength;
     u.uFlashColor.value.copy(flash.color);
 
+    // Neither pass' `enabled` is set here: `render` owns both, because whether
+    // the distortion pass has anything to composite is only known once the
+    // scene has been walked, and bloom also depends on the frame's activity.
     this.distortionPass.uniforms.uScale.value = post.enabled ? post.distortion : 0;
-    this.distortionPass.enabled = post.enabled;
   }
 
-  render() {
-    this._renderDepth();
-    this._renderDistortion();
+  /**
+   * Draw the frame.
+   *
+   * Both auxiliary passes are skipped when nothing on screen can consume them,
+   * which on an idle stage is every frame:
+   *
+   * - the depth buffer is sampled only by ability, particle and burst
+   *   materials, so with none of them alive the prepass is a full render of
+   *   the opaque world into a texture nobody reads;
+   * - the distortion buffer is written only by proxies parented to an ability,
+   *   and the pass that composites it is a full-screen read of an image that
+   *   is uniformly "no offset".
+   *
+   * @param {boolean} live whether any depth-sampling effect is on screen —
+   *   see `App#_liveEffects`. Defaults to true so the boot-time warm-up draws
+   *   the complete pipeline.
+   */
+  render(live = true, active = true) {
+    const perf = settings.performance;
+    this.bloomPass.enabled = settings.post.enabled && settings.post.bloomStrength > 0.001
+      && (active || perf.idleBloom);
+    if (this._bloomScale !== perf.bloomScale) this._applyBloomSize();
+    if (live) this._renderDepth();
+
+    const post = settings.post;
+    const hasDistortion =
+      live && post.enabled && post.distortion !== 0 && hasVisibleDistortion(this.scene);
+
+    this.distortionPass.enabled = hasDistortion;
+    if (hasDistortion) this._renderDistortion();
+
     // Tone mapping is applied by OutputPass: three automatically disables the
     // in-material tone mapping while rendering into the composer's targets.
     this.composer.render();
@@ -180,7 +265,10 @@ export class PostProcessing {
   setSize(width, height, pixelRatio) {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
-    this.bloomPass.setSize(width, height);
+    // After the composer, which resizes every pass to the device resolution.
+    this._width = width;
+    this._height = height;
+    this._applyBloomSize();
 
     const w = Math.floor(width * pixelRatio);
     const h = Math.floor(height * pixelRatio);
