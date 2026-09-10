@@ -243,6 +243,9 @@ export class Editor {
       .name('Delete');
 
     folder.add({ exportOne: () => this.presets.exportJSON() }, 'exportOne').name('Export current (JSON)');
+    folder.add({ recover: () => {
+      if (!this.presets.exportUnreadable()) this.hooks.onToast?.('No unreadable backup is available.');
+    } }, 'recover').name('Download unreadable backup');
     folder.add({ exportAll: () => this.presets.exportAll() }, 'exportAll').name('Export all presets');
 
     folder

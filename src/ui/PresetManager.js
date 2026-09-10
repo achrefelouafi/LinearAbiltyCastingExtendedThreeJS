@@ -187,13 +187,29 @@ export class PresetManager {
 
   /** Export every stored preset in one file. */
   exportAll() {
-    const blob = new Blob([JSON.stringify(this.presets, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ ...this._quarantine, ...this.presets }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = 'frost-presets.json';
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  /** Download the original unreadable bytes, including when storage backup failed. */
+  exportUnreadable() {
+    let raw = this._pendingBackup;
+    if (raw === null) {
+      try { raw = localStorage.getItem(BROKEN_KEY); } catch { return false; }
+    }
+    if (raw === null) return false;
+    const url = URL.createObjectURL(new Blob([raw], { type: 'application/octet-stream' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'frost-presets-unreadable.txt';
+    anchor.click();
+    URL.revokeObjectURL(url);
+    return true;
   }
 
   /**

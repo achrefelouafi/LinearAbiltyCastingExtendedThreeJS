@@ -18,7 +18,8 @@ const _desiredTarget = new Vector3();
  * - The rig gently drifts its look-at point toward whatever ability is casting.
  */
 export class CameraRig {
-  constructor(domElement) {
+  constructor(domElement, { onInteraction = () => {} } = {}) {
+    this.onInteraction = onInteraction;
     this.camera = new PerspectiveCamera(
       settings.camera.fov,
       window.innerWidth / window.innerHeight,
@@ -50,6 +51,8 @@ export class CameraRig {
 
     this.controls.target.set(0, settings.camera.targetHeight, 0);
     this.controls.update();
+    this.controls.addEventListener('start', this.onInteraction);
+    this.controls.addEventListener('change', this.onInteraction);
 
     // Actual distance, eased toward `settings.camera.distance` so a wheel flick
     // glides instead of snapping.
@@ -63,6 +66,7 @@ export class CameraRig {
   /** Wheel zoom. Multiplicative, so each notch feels the same at any distance. */
   _onWheel(event) {
     event.preventDefault();
+    this.onInteraction();
 
     const cam = settings.camera;
     // Firefox reports lines (deltaMode 1) and pages (2) rather than pixels.
@@ -134,6 +138,8 @@ export class CameraRig {
 
   dispose() {
     this.domElement.removeEventListener('wheel', this._onWheel);
+    this.controls.removeEventListener('start', this.onInteraction);
+    this.controls.removeEventListener('change', this.onInteraction);
     this.controls.dispose();
   }
 }

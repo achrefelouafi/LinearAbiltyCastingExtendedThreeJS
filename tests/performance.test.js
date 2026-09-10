@@ -65,11 +65,11 @@ test('shadow cadence preserves 30 refreshes/second at different display rates', 
 });
 
 /** Feed `seconds` of frames at `fps` and report every scale the run produced. */
-function run(resolution, { seconds, fps, targetFps, active = true }) {
+function run(resolution, { seconds, fps, targetFps, active = true, workMs = 1000 / fps, gpuMs = null }) {
   const dt = 1 / fps;
   const scales = [];
   for (let i = 0; i < Math.round(seconds * fps); i++) {
-    if (resolution.sample(dt, targetFps, active)) scales.push(resolution.scale);
+    if (resolution.sample(dt, targetFps, active, workMs, gpuMs)) scales.push(resolution.scale);
   }
   return scales;
 }
@@ -96,4 +96,17 @@ test('adaptive resolution ignores idle frames and a display slower than the cap'
   // A 120 FPS cap on a 60 Hz panel is permanently "late" against the budget.
   assert.deepEqual(run(capped, { seconds: 10, fps: 60, targetFps: 120 }), []);
   assert.equal(capped.scale, 1);
+});
+
+test('30 Hz refresh and browser throttling do not reduce resolution without busy work', () => {
+  for (const fps of [30, 20]) {
+    const resolution = new AdaptiveResolution();
+    assert.deepEqual(run(resolution, { seconds: 10, fps, targetFps: 60, workMs: 2 }), []);
+    assert.equal(resolution.scale, 1);
+  }
+});
+
+test('GPU evidence can identify overload even when CPU submission is fast', () => {
+  const resolution = new AdaptiveResolution();
+  assert.deepEqual(run(resolution, { seconds: 6, fps: 30, targetFps: 60, workMs: 2, gpuMs: 30 }), [0.85, 0.7, 0.6]);
 });

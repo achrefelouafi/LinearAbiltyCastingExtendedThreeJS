@@ -752,7 +752,9 @@ playing, so two knobs work on both:
 With `dynamicResolution` on, sustained overruns walk a render scale down through 0.85 / 0.7 / 0.6
 and back up once the frame budget clears. Only active frames count — idle frames are throttled on
 purpose — and the budget is measured against at most 60 FPS, so a 120 FPS cap on a 60 Hz panel is
-not mistaken for a device in trouble. A device with no stored preference starts on **Economy** if
+not mistaken for a device in trouble. Scale reductions also require sustained CPU or GPU
+work above budget, so a lightly loaded 30 Hz display keeps its resolution. Without GPU timing
+support, only measured CPU work can establish an overrun. A device with no stored preference starts on **Economy** if
 it reports a coarse pointer, ≤4 GB of memory or ≤4 cores, so a phone is not handed the desktop
 defaults by someone who never opens the panel.
 
@@ -768,7 +770,10 @@ load and reset preserve these preferences; old presets' `performance` blocks are
 Imports are validated before any mutation: only known fields and matching types are accepted,
 with finite numeric values (editor ranges where registered, otherwise a ±10,000 hard bound),
 valid hex colors and supported cast animations. Reserved prototype keys, arrays and deep trees
-are rejected. Files are limited to 2 MB and collections to 100 presets.
+are rejected. **Export all presets** includes quarantined entries unchanged as JSON values.
+**Download unreadable backup** saves a wholly unreadable collection verbatim, including after
+reload or a failed storage backup. These recovery files preserve data for repair; unsupported
+entries must be repaired before importing them into this build. Files are limited to 2 MB and collections to 100 presets.
 
 Four concurrent casts — the pool's ceiling, whichever slots they came from — is what the budget is
 set against, and `MAX_CONCURRENT` in `AbilityManager` retires the oldest one past that whichever
@@ -781,6 +786,9 @@ per second; it does not force the scene out of idle mode.
 
 Use **Compare → Record 10 seconds**, label the scenario, then **Copy report** to save JSON with
 settings, device context and the sample. Keep viewport and scenario consistent between runs.
+Reports include an effective-state timeline with frame/time offsets, adaptive scale, canvas size
+and actual light-pool size. Mixed states and a light budget awaiting reload are explicitly flagged;
+treat these samples as variable conditions when comparing runs.
 Changing performance settings or hiding the tab cancels a sample. CPU timings are browser work,
 not GPU utilization; GPU timings sample rendering passes, not temperature or power consumption.
 

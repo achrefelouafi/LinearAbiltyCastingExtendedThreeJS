@@ -190,3 +190,33 @@ test('failed persistence leaves saved presets and quarantine unchanged', () => {
   assert.equal(manager.quarantined, 1);
   assert.equal(localStorage.getItem(key), raw);
 });
+
+test('collection downloads include quarantined content and raw backups survive reload', async (t) => {
+  let downloaded;
+  t.mock.method(URL, 'createObjectURL', blob => { downloaded = blob; return 'blob:test'; });
+  t.mock.method(URL, 'revokeObjectURL', () => {});
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => ({ click() {} }) };
+  try {
+    const stale = { global: { removedKnob: 'original\nvalue ☃' } };
+    localStorage.setItem('frost-sandbox.presets.v1', JSON.stringify({ Good: snapshotSettings(), Stale: stale }));
+    const manager = new PresetManager();
+    manager.exportAll();
+    assert.deepEqual(JSON.parse(await downloaded.text()).Stale, stale);
+
+    const raw = ' { broken JSON\n☃ ';
+    localStorage.setItem('frost-sandbox.presets.v1', raw);
+    const broken = new PresetManager();
+    assert.equal(broken.exportUnreadable(), true);
+    assert.equal(await downloaded.text(), raw);
+    broken.save('New');
+    assert.equal(new PresetManager().exportUnreadable(), true);
+    assert.equal(await downloaded.text(), raw);
+
+    localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+    localStorage.getItem = () => raw;
+    const pending = new PresetManager();
+    assert.equal(pending.exportUnreadable(), true);
+    assert.equal(await downloaded.text(), raw);
+  } finally { globalThis.document = originalDocument; }
+});

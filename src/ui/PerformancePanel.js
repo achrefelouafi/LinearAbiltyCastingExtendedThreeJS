@@ -190,8 +190,8 @@ export class PerformancePanel {
   }
 
   beginGpu() {
-    // The collapsed pill only needs FPS; do not poll the GPU for hidden details.
-    if (this.element.open || this.recording) this.gpu.begin(performance.now());
+    // Adaptive resolution also needs sparse GPU evidence when the panel is closed.
+    if (this.element.open || this.recording || settings.performance.dynamicResolution) this.gpu.begin(performance.now());
   }
   endGpu() { this.gpu.end(); }
 
@@ -199,6 +199,7 @@ export class PerformancePanel {
     this.recording = {
       label: this.element.querySelector('[data-label]').value.trim() || 'Untitled',
       settings: structuredClone(settings.performance),
+      effectiveStates: [],
       elapsed: 0, cpu: [], calls: [], gpu: [], lastGpu: this.gpu.completed
     };
     this.recordButton.disabled = true;
@@ -212,7 +213,7 @@ export class PerformancePanel {
     this.status.textContent = message;
   }
 
-  record(dt, cpuMs, { mode, targetFps, scale = 1 }) {
+  record(dt, cpuMs, { mode, targetFps, scale = 1, lightCount = null }) {
     if (dt <= 0) return;
     const info = this.renderer.info;
     this.frames++;
@@ -223,6 +224,12 @@ export class PerformancePanel {
       if (Object.keys(recording.settings).some(key => recording.settings[key] !== settings.performance[key])) {
         this.cancelRecording('Settings changed; start a new sample.');
       } else {
+        const state = { scale, lightCount,
+          canvas: [this.renderer.domElement.width, this.renderer.domElement.height] };
+        const previous = recording.effectiveStates.at(-1);
+        if (!previous || JSON.stringify(previous.state) !== JSON.stringify(state)) {
+          recording.effectiveStates.push({ frame: recording.cpu.length, seconds: recording.elapsed, state });
+        }
         recording.elapsed += dt;
         recording.cpu.push(cpuMs);
         recording.calls.push(info.render.calls);
@@ -245,7 +252,7 @@ export class PerformancePanel {
       textures: info.memory.textures,
       canvas: `${this.renderer.domElement.width} × ${this.renderer.domElement.height}` +
         (scale < 1 ? ` · ${Math.round(scale * 100)}% adaptive` : ''),
-      mode, targetFps
+      mode, targetFps, scale, lightCount
     };
     const value = this.latest;
     this.fps.textContent = `${Math.round(value.fps)} FPS`;
@@ -271,6 +278,9 @@ export class PerformancePanel {
     const sorted = [...sample.cpu].sort((a, b) => a - b);
     this.lastSample = {
       label: sample.label, capturedAt: new Date().toISOString(), settings: sample.settings,
+      effectiveStates: sample.effectiveStates,
+      mixedRenderingStates: sample.effectiveStates.length > 1,
+      lightBudgetRequiresReload: sample.effectiveStates.some(({ state }) => state.lightCount !== sample.settings.lightCount),
       seconds: sample.elapsed, frames: sample.cpu.length, fps: sample.cpu.length / sample.elapsed,
       cpuAverageMs: average(sample.cpu), cpuP95Ms: sorted[Math.ceil(sorted.length * 0.95) - 1],
       gpuAverageMs: average(sample.gpu), gpuSamples: sample.gpu.length,
@@ -282,7 +292,9 @@ export class PerformancePanel {
     Object.values(this.sampleRows).forEach((row, i) => { row.textContent = values[i]; });
     this.recording = null;
     this.recordButton.disabled = false;
-    this.status.textContent = 'Sample ready. Copy the report to compare runs.';
+    this.status.textContent = value.mixedRenderingStates || value.lightBudgetRequiresReload
+      ? 'Sample ready with rendering-state differences. The report includes the state timeline and effective light count.'
+      : 'Sample ready. Copy the report to compare runs.';
   }
 
   report() {

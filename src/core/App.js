@@ -98,7 +98,7 @@ export class App {
 
     /* ---- core ---- */
     this.renderer = new Renderer(canvas);
-    this.rig = new CameraRig(canvas);
+    this.rig = new CameraRig(canvas, { onInteraction: () => this._markActive() });
     this.camera = this.rig.camera;
 
     this.environment = new Environment(this.renderer, this.camera);
@@ -608,14 +608,6 @@ export class App {
     // Only frames the loop was actually trying to deliver at `maxFps` carry a
     // usable signal; the scaler ignores the rest.
     const active = this.paused || performance.now() < this._activeUntil;
-    if (settings.performance.dynamicResolution) {
-      if (this._resolution.sample(raw, this._targetFps(), active)) {
-        this.renderer.resolutionScale = this._resolution.scale;
-      }
-    } else if (this.renderer.resolutionScale !== 1) {
-      this._resolution.reset();
-      this.renderer.resolutionScale = 1;
-    }
 
     this.performancePanel.beginGpu();
     this.contactShadows.setPosition(this.character.position.x, this.character.position.z);
@@ -639,11 +631,28 @@ export class App {
       this.hud.setCooldown(element, this.cooldowns.get(element) ?? 0, settings[element].cooldown);
     }
     this.hud.setArmed(this.aim.isArmed);
-    this.performancePanel.record(raw, performance.now() - cpuStart, {
+    const cpuMs = performance.now() - cpuStart;
+    const gpu = this.performancePanel.gpu;
+    // Only use a newly completed GPU query; old timings must not sustain an overrun.
+    this._lastWorkMs = cpuMs;
+    this._lastGpuMs = gpu.completed !== this._lastGpuCompleted ? gpu.latest : null;
+    this._lastGpuCompleted = gpu.completed;
+    this.performancePanel.record(raw, cpuMs, {
       targetFps: this._targetFps(),
       mode: this.paused ? 'Paused' : active ? 'Active' : 'Idle',
-      scale: this.renderer.resolutionScale
+      scale: this.renderer.resolutionScale,
+      lightCount: this.lights.lights.length
     });
+
+    // Decide the next frame's scale only after reporting the canvas just rendered.
+    if (settings.performance.dynamicResolution) {
+      if (this._resolution.sample(raw, this._targetFps(), active, this._lastWorkMs, this._lastGpuMs)) {
+        this.renderer.resolutionScale = this._resolution.scale;
+      }
+    } else if (this.renderer.resolutionScale !== 1) {
+      this._resolution.reset();
+      this.renderer.resolutionScale = 1;
+    }
   }
 
   /* ------------------------------------------------------------------ */
